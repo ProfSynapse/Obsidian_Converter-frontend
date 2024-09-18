@@ -1,113 +1,178 @@
 /* Reset and base styles */
 *, *::before, *::after {
-    box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  color: var(--text-color);
+  background-color: var(--background-color);
+}
+
+/* Global variables */
+:root {
+  --primary-color: #00A99D;
+  --secondary-color: #93278F;
+  --tertiary-color: #33475B;
+  --accent-color-1: #F7931E;
+  --accent-color-2: #29ABE2;
+  --background-color: #FFFFFF;
+  --text-color: #33475B;
+  --error-color: #FF0000;
+  --success-color: #008000;
+  --border-radius: 6px;
+  --transition-speed: 0.3s;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  line-height: 1.2;
+  color: var(--primary-color);
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.75rem; }
+h4 { font-size: 1.5rem; }
+h5 { font-size: 1.25rem; }
+h6 { font-size: 1rem; }
+
+p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+/* Links */
+a {
+  color: var(--accent-color-2);
+  text-decoration: none;
+  transition: color var(--transition-speed) ease;
+}
+
+a:hover, a:focus {
+  color: var(--secondary-color);
+  text-decoration: underline;
+}
+
+/* Forms */
+input, textarea, select, button {
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-color);
+}
+
+input[type="text"], input[type="email"], input[type="password"], textarea, select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--primary-color);
+  border-radius: var(--border-radius);
+  background-color: var(--background-color);
+  transition: border-color var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+}
+
+input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent-color-2);
+  box-shadow: 0 0 0 3px rgba(41, 171, 226, 0.3);
+}
+
+/* Buttons */
+button {
+  cursor: pointer;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--border-radius);
+  background-color: var(--primary-color);
+  color: var(--background-color);
+  font-weight: 600;
+  transition: background-color var(--transition-speed) ease;
+}
+
+button:hover, button:focus {
+  background-color: var(--secondary-color);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Utility classes */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
+.mt-5 { margin-top: 3rem; }
+
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.mb-5 { margin-bottom: 3rem; }
+
+.text-primary { color: var(--primary-color); }
+.text-secondary { color: var(--secondary-color); }
+.text-error { color: var(--error-color); }
+.text-success { color: var(--success-color); }
+
+/* Responsive design */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
   }
-  
+
+  .container {
+    padding: 0 0.75rem;
+  }
+}
+
+/* Accessibility */
+.visually-hidden {
+  position: absolute !important;
+  height: 1px;
+  width: 1px;
+  overflow: hidden;
+  clip: rect(1px 1px 1px 1px);
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
+}
+
+/* Print styles */
+@media print {
   body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    line-height: 1.5;
-    color: #333;
-    background-color: #f4f4f4;
+    background-color: #fff;
+    color: #000;
   }
-  
-  code {
-    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-      monospace;
-  }
-  
-  /* Global variables */
-  :root {
-    --primary-color: #00A99D;
-    --primary-color-dark: #008C82;
-    --secondary-color: #FFA500;
-    --text-color: #333;
-    --background-color: #f4f4f4;
-    --error-color: #FF0000;
-    --success-color: #008000;
-  }
-  
-  /* Typography */
-  h1, h2, h3, h4, h5, h6 {
-    margin-top: 0;
-    margin-bottom: 0.5em;
-    line-height: 1.2;
-  }
-  
-  h1 {
-    font-size: 2.5em;
-  }
-  
-  h2 {
-    font-size: 2em;
-  }
-  
-  p {
-    margin-top: 0;
-    margin-bottom: 1em;
-  }
-  
-  /* Links */
+
   a {
-    color: var(--primary-color);
-    text-decoration: none;
-  }
-  
-  a:hover {
+    color: #000;
     text-decoration: underline;
   }
-  
-  /* Buttons */
-  button {
-    cursor: pointer;
+
+  .no-print {
+    display: none;
   }
-  
-  /* Forms */
-  input, textarea, select {
-    font-family: inherit;
-    font-size: inherit;
-  }
-  
-  /* Utility classes */
-  .container {
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 15px;
-  }
-  
-  .text-center {
-    text-align: center;
-  }
-  
-  .mt-1 { margin-top: 0.25rem; }
-  .mt-2 { margin-top: 0.5rem; }
-  .mt-3 { margin-top: 1rem; }
-  .mt-4 { margin-top: 1.5rem; }
-  .mt-5 { margin-top: 3rem; }
-  
-  .mb-1 { margin-bottom: 0.25rem; }
-  .mb-2 { margin-bottom: 0.5rem; }
-  .mb-3 { margin-bottom: 1rem; }
-  .mb-4 { margin-bottom: 1.5rem; }
-  .mb-5 { margin-bottom: 3rem; }
-  
-  .text-primary { color: var(--primary-color); }
-  .text-secondary { color: var(--secondary-color); }
-  .text-error { color: var(--error-color); }
-  .text-success { color: var(--success-color); }
-  
-  /* Responsive design */
-  @media (max-width: 768px) {
-    body {
-      font-size: 14px;
-    }
-  
-    .container {
-      padding: 0 10px;
-    }
-  }
+}
