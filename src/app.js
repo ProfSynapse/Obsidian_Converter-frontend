@@ -1,21 +1,21 @@
 import React from 'react';
+import styled from 'styled-components';
 import ObsidianNoteConverter from './components/ObsidianNoteConverter/ObsidianNoteConverter';
-import './styles/index.css';
+
+const AppContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f0f0f0; // Light gray background, adjust as needed
+  padding: 20px;
+`;
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Obsidian Note Converter</h1>
-        <p>A product of Synaptic Labs</p>
-      </header>
-      <main>
-        <ObsidianNoteConverter />
-      </main>
-      <footer className="App-footer">
-        <p>&copy; {new Date().getFullYear()} Synaptic Labs. All rights reserved.</p>
-      </footer>
-    </div>
+    <AppContainer>
+      <ObsidianNoteConverter />
+    </AppContainer>
   );
 }
 
