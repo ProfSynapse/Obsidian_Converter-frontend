@@ -2,34 +2,23 @@ obsidian-note-converter/
 ├── src/
 │   ├── lib/
 │   │   ├── components/
-│   │   │   ├── ConversionStatus.svelte
 │   │   │   ├── FileUploader.svelte
+│   │   │   ├── ConversionStatus.svelte
 │   │   │   ├── ResultDisplay.svelte
-│   │   │   └── common/
-│   │   │       ├── Button.svelte
-│   │   │       └── Input.svelte
+│   │   │   └── ObsidianNoteConverter.svelte
 │   │   ├── stores/
 │   │   │   ├── apiKey.js
 │   │   │   ├── files.js
 │   │   │   └── conversionStatus.js
-│   │   └── utils/
-│   │       ├── apiClient.js
-│   │       ├── fileHandlers.js
-│   │       └── validators.js
+│   │   └── api.js
 │   ├── routes/
 │   │   ├── +page.svelte
 │   │   └── +layout.svelte
-│   ├── app.html
-│   └── app.css
+│   └── app.html
 ├── static/
 │   └── favicon.png
-├── tests/
-│   └── test.js
-├── .gitignore
 ├── package.json
-├── README.md
 ├── svelte.config.js
-├── tsconfig.json
 └── vite.config.js
 
 # Obsidian Note Converter

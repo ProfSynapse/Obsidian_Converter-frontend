@@ -2,22 +2,22 @@
 <!-- Component for displaying the current conversion status -->
 
 <script>
-    import { conversionStatus } from '$lib/stores';
-    import { fade } from 'svelte/transition';
-  </script>
-  
-  <div class="conversion-status" transition:fade>
-    {#if $conversionStatus === 'idle'}
-      <p class="status idle">Ready to convert your files.</p>
-    {:else if $conversionStatus === 'processing'}
-      <p class="status processing">Converting your files...</p>
-      <div class="spinner"></div>
-    {:else if $conversionStatus === 'completed'}
-      <p class="status completed">Conversion completed successfully!</p>
-    {:else if $conversionStatus === 'error'}
-      <p class="status error">An error occurred during conversion. Please try again.</p>
-    {/if}
-  </div>
+  import { fade } from 'svelte/transition';
+  import { conversionStatus } from '$lib/stores';
+</script>
+
+<div class="conversion-status" transition:fade>
+  {#if $conversionStatus === 'idle'}
+    <p class="status idle">Ready to convert your files.</p>
+  {:else if $conversionStatus === 'processing'}
+    <p class="status processing">Converting your files...</p>
+    <div class="spinner"></div>
+  {:else if $conversionStatus === 'completed'}
+    <p class="status completed">Conversion completed successfully!</p>
+  {:else if $conversionStatus === 'error'}
+    <p class="status error">An error occurred during conversion. Please try again.</p>
+  {/if}
+</div>
   
   <style>
     .conversion-status {
