@@ -1,5 +1,5 @@
+<!-- src/lib/components/FileUploader.svelte -->
 <script>
-  import { files } from '$lib/stores';
   import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
@@ -7,7 +7,6 @@
 
   function handleFilesSelected(event) {
     const selectedFiles = Array.from(event.target.files || event.dataTransfer.files || []);
-    $files = [...($files || []), ...selectedFiles];
     dispatch('filesAdded', selectedFiles);
   }
 
@@ -25,10 +24,6 @@
     dragover = false;
     handleFilesSelected(event);
   }
-
-  function removeFile(index) {
-    $files = ($files || []).filter((_, i) => i !== index);
-  }
 </script>
 
 <div 
@@ -39,6 +34,7 @@
   on:drop={handleDrop}
   role="region"
   aria-label="File upload area"
+  tabindex="0"
 >
   <label for="file-input" class="file-input-label">
     <input 
@@ -49,30 +45,24 @@
     />
     Drag and drop files here or click to select
   </label>
-
-  {#if $files && $files.length > 0}
-    <ul class="file-list">
-      {#each $files as file, index}
-        <li>
-          {file.name}
-          <button on:click={() => removeFile(index)} aria-label={`Remove ${file.name}`}>Remove</button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
 </div>
 
 <style>
   .file-uploader {
     border: 2px dashed #ccc;
-    border-radius: 4px;
+    border-radius: 8px;
     padding: 20px;
     text-align: center;
     transition: all 0.3s ease;
   }
 
+  .file-uploader:focus-within {
+    outline: 2px solid #00A99D;
+    outline-offset: 2px;
+  }
+
   .dragover {
-    border-color: #007bff;
+    border-color: #00A99D;
     background-color: #f8f9fa;
   }
 
@@ -80,37 +70,12 @@
     display: block;
     cursor: pointer;
     padding: 10px;
-    background-color: #007bff;
+    background-color: #00A99D;
     color: white;
     border-radius: 4px;
   }
 
   input[type="file"] {
     display: none;
-  }
-
-  .file-list {
-    list-style-type: none;
-    padding: 0;
-    margin-top: 20px;
-  }
-
-  .file-list li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    background-color: #f8f9fa;
-    margin-bottom: 5px;
-    border-radius: 4px;
-  }
-
-  .file-list button {
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
   }
 </style>

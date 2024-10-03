@@ -1,116 +1,96 @@
 <!-- src/lib/components/ResultDisplay.svelte -->
-<!-- Component for displaying conversion results -->
-
 <script>
-    import { conversionStatus } from '$lib/stores';
-    import { createEventDispatcher } from 'svelte';
-    
-    const dispatch = createEventDispatcher();
-    
-    // This should be populated with actual conversion results
-    export let conversionResults = [];
+  import { createEventDispatcher } from 'svelte';
   
-    function downloadFile(fileName, content) {
-      const blob = new Blob([content], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+  export let conversionResults = [];
   
-    function handleDownload(result) {
-      downloadFile(result.name, result.content);
-      dispatch('fileDownloaded', result);
-    }
-  </script>
-  
-  <div class="result-display">
-    {#if $conversionStatus === 'completed' && conversionResults.length > 0}
-      <h2>Conversion Results</h2>
-      <table>
-        <thead>
+  const dispatch = createEventDispatcher();
+
+  function downloadFile(fileName, content) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    dispatch('fileDownloaded', { fileName });
+  }
+
+  function handleDownloadAll() {
+    dispatch('downloadAll', conversionResults);
+  }
+</script>
+
+<div class="result-display">
+  {#if conversionResults.length > 0}
+    <h2>Conversion Results</h2>
+    <button class="download-all-btn" on:click={handleDownloadAll}>Download All</button>
+    <table>
+      <thead>
+        <tr>
+          <th>File Name</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each conversionResults as result}
           <tr>
-            <th>File Name</th>
-            <th>Status</th>
-            <th>Action</th>
+            <td>{result.name}</td>
+            <td>
+              {#if result.error}
+                <span class="error">Failed</span>
+              {:else}
+                <span class="success">Converted</span>
+              {/if}
+            </td>
+            <td>
+              {#if !result.error}
+                <button on:click={() => downloadFile(result.name, result.content)}>
+                  Download
+                </button>
+              {:else}
+                <span class="error-message">{result.error}</span>
+              {/if}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {#each conversionResults as result}
-            <tr>
-              <td>{result.name}</td>
-              <td>
-                {#if result.error}
-                  <span class="error">Failed</span>
-                {:else}
-                  <span class="success">Converted</span>
-                {/if}
-              </td>
-              <td>
-                {#if !result.error}
-                  <button on:click={() => handleDownload(result)}>
-                    Download
-                  </button>
-                {:else}
-                  <span class="error-message">{result.error}</span>
-                {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {:else if $conversionStatus === 'completed'}
-      <p>No files were converted. Please try uploading some files.</p>
-    {/if}
-  </div>
-  
-  <style>
-    .result-display {
-      margin-top: 20px;
-    }
-  
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-  
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: left;
-    }
-  
-    th {
-      background-color: #f2f2f2;
-      font-weight: bold;
-    }
-  
-    button {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-  
-    button:hover {
-      background-color: #0056b3;
-    }
-  
-    .success {
-      color: #28a745;
-    }
-  
-    .error {
-      color: #dc3545;
-    }
-  
-    .error-message {
-      font-size: 0.8em;
-      color: #dc3545;
-    }
-  </style>
+        {/each}
+      </tbody>
+    </table>
+  {:else}
+    <p>No conversion results available.</p>
+  {/if}
+</div>
+
+<style>
+  .result-display {
+    width: 100%;
+    margin-top: 20px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+
+  .download-all-btn {
+    background-color: #00A99D;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 1rem;
+  }
+
+  .download-all-btn:hover, .download-all-btn:focus {
+    background-color: #008c82;
+  }
+</style>
