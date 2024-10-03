@@ -92,7 +92,8 @@
     <section class="accordion">
       <h2>
         <button 
-          class="accordion-header" 
+          class="accordion-header"
+          class:active={showPurpose}
           on:click={() => toggleAccordion('purpose')}
           aria-expanded={showPurpose}
           aria-controls="purpose-content"
@@ -102,26 +103,27 @@
         </button>
       </h2>
       {#if showPurpose}
-        <div id="purpose-content" class="accordion-content" transition:slide>
-          <div class="content-container">
-            <p>Omni-Converter is a powerful tool designed to transform your files and web content while enhancing their content using OpenAI technology:</p>
-            <ul>
-              <li>Convert between various file types</li>
-              <li>Scrape and convert web content</li>
-              <li>Add rich metadata based on the content</li>
-              <li>Enhance searchability and organization of your documents</li>
-              <li>Preserve formatting and structure during conversion</li>
-              <li>Seamlessly integrate with your existing workflow</li>
-            </ul>
-          </div>
+      <div id="purpose-content" class="accordion-content" transition:slide>
+        <div class="content-container markdown-style">
+          <p>Omni-Converter is a powerful tool designed to transform your files and web content while enhancing their content using OpenAI technology:</p>
+          <ul>
+            <li>Convert between various file types</li>
+            <li>Scrape and convert web content</li>
+            <li>Add rich metadata based on the content</li>
+            <li>Enhance searchability and organization of your documents</li>
+            <li>Preserve formatting and structure during conversion</li>
+            <li>Seamlessly integrate with your existing workflow</li>
+          </ul>
         </div>
-      {/if}
-    </section>
+      </div>
+    {/if}
+  </section>
 
     <section class="accordion">
       <h2>
         <button 
-          class="accordion-header" 
+          class="accordion-header"
+          class:active={showInstructions}
           on:click={() => toggleAccordion('instructions')}
           aria-expanded={showInstructions}
           aria-controls="instructions-content"
@@ -132,14 +134,17 @@
       </h2>
       {#if showInstructions}
         <div id="instructions-content" class="accordion-content" transition:slide>
-          <ol>
-            <li>Enter your OpenAI API key in the field below.</li>
-            <li>Add files by dragging and dropping or clicking to select.</li>
-            <li>Add URLs by entering them in the URL field and clicking the "+" button.</li>
-            <li>Review your list of files and URLs to be converted.</li>
-            <li>Click the Convert button to start the process.</li>
-            <li>Once conversion is complete, download your converted files individually or all at once.</li>
-          </ol>
+          <div class="content-container markdown-style">
+            <ol>
+              <li>Enter your OpenAI API key in the field below.</li>
+              <li>Add files by dragging and dropping or clicking to select.</li>
+              <li>Add URLs by entering them in the URL field and clicking the "+" button.</li>
+              <li>Review your list of files and URLs to be converted.</li>
+              <li>Click the <code>Convert</code> button to start the process.</li>
+              <li>Once conversion is complete, download your converted files individually or all at once.</li>
+            </ol>
+            <p><strong>Note:</strong> Ensure you have a valid OpenAI API key before starting the conversion process.</p>
+          </div>
         </div>
       {/if}
     </section>
@@ -262,47 +267,79 @@
     }
   }
 
-  .accordion-header {
-    background-color: #f0f0f0;
-    border: none;
-    padding: 0.75rem 1rem;
+  .accordion {
+    margin-bottom: 1rem;
     border-radius: 4px;
-    cursor: pointer;
+    overflow: hidden;
+  }
+
+  .accordion-header {
+    background-color: #00A99D; /* Primary color */
+    color: white;
+    border: none;
+    padding: 1rem;
     width: 100%;
     text-align: left;
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-weight: 600;
-    color: #333;
     font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  .accordion-header:hover {
+    background-color: #93278F; /* Secondary color */
+  }
+
+  .accordion-header.active {
+    background-color: #93278F; /* Secondary color */
+  }
+
+  .accordion-icon {
+    font-size: 1.2rem;
   }
 
   .accordion-content {
-    background-color: #f9f9fa;
-    border-radius: 0 0 4px 4px;
+    background-color: white;
     overflow: hidden;
   }
 
   .content-container {
-    background-color: #ffffff;
-    margin: 1rem;
-    padding: 1rem;
-    border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background-color: white;
+    padding: 1.5rem;
   }
 
-  .content-container p {
+  .markdown-style {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #333;
+  }
+
+  .markdown-style p {
     margin-bottom: 1rem;
   }
 
-  .content-container ul {
+  .markdown-style ul, .markdown-style ol {
     padding-left: 1.5rem;
-    margin-bottom: 0;
+    margin-bottom: 1rem;
   }
 
-  .content-container li {
+  .markdown-style li {
     margin-bottom: 0.5rem;
+  }
+
+  .markdown-style code {
+    background-color: #f0f0f0;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+
+  .markdown-style strong {
+    font-weight: 600;
   }
 
   .api-key-input {
