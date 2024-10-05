@@ -7,6 +7,7 @@ obsidian-note-converter-frontend/
 │   │   │   │   └── useFileUpload.js
 │   │   │   ├── ConversionStatus.svelte
 │   │   │   ├── ResultDisplay.svelte
+│   │   │   ├── FileList.svelte
 │   │   │   └── ObsidianNoteConverter.svelte
 │   │   ├── stores/
 │   │   │   ├── apiKey.js
@@ -39,6 +40,7 @@ obsidian-note-converter-frontend/
 ├── README.md
 ├── svelte.config.js
 └── vite.config.js
+└── jsconfig.js
 
 # Obsidian Note Converter Frontend Documentation
 

@@ -1,15 +1,25 @@
 /* src/styles/global.css */
 
+/* Importing Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
 
 :root {
+  /* Brand Colors */
   --color-prime: #00a99d;
   --color-second: #93278f;
   --color-third: #fbf7f1;
+  --color-error: #ff3860;
+  --color-error-dark: #e60000; /* Darkened error color for hover */
+
+  /* Text and Background Colors */
   --color-text: #333333;
   --color-background: #ffffff;
-  --color-error: #ff3860;
-  --gradient-main: linear-gradient(135deg, var(--color-prime), var(--color-second));
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, var(--color-prime), var(--color-second));
+  --gradient-button: linear-gradient(45deg, var(--color-prime), var(--color-second));
+
+  /* Other Styling Variables */
   --rounded-corners: 12px;
   --transition-speed: 0.3s;
   --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -45,7 +55,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .btn {
   font-family: 'Montserrat', sans-serif;
-  background: var(--gradient-main);
+  background: var(--gradient-button);
   color: var(--color-background);
   border: none;
   padding: 10px 20px;

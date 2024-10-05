@@ -12,9 +12,36 @@ const ALLOWED_FILE_TYPES = [
   'video/mp4', 'video/quicktime'
 ];
 
+/**
+ * @typedef {Object} FileObject
+ * @property {File} file - The File object
+ * @property {string} type - The type of the file
+ * @property {string} status - The status of the file
+ */
+
+/**
+ * @typedef {Object} UrlObject
+ * @property {string} url - The URL string
+ * @property {string} type - The type (always 'url')
+ * @property {string} status - The status of the URL
+ */
+
+/**
+ * @typedef {FileObject | UrlObject} UploadItem
+ */
+
+/**
+ * Hook for file upload functionality
+ * @returns {Object} File upload methods and store
+ */
 export function useFileUpload() {
+  /** @type {import('svelte/store').Writable<UploadItem[]>} */
   const { subscribe, update } = writable([]);
 
+  /**
+   * @param {File} file
+   * @throws {Error}
+   */
   function validateFile(file) {
     if (file.size > MAX_FILE_SIZE) {
       throw new Error(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
@@ -24,6 +51,10 @@ export function useFileUpload() {
     }
   }
 
+  /**
+   * @param {string} url
+   * @throws {Error}
+   */
   function validateUrl(url) {
     try {
       new URL(url);
@@ -32,14 +63,17 @@ export function useFileUpload() {
     }
   }
 
+  /**
+   * @param {File[]} newFiles
+   */
   function addFiles(newFiles) {
-    update(files => {
+    update(/** @param {UploadItem[]} files */ files => {
       const validFiles = [...files];
       for (let file of newFiles) {
         try {
           validateFile(file);
           validFiles.push({ file, type: getFileType(file.type), status: 'pending' });
-        } catch (error) {
+        } catch (/** @type {any} */ error) {
           console.error(`Error adding file ${file.name}:`, error.message);
         }
       }
@@ -47,18 +81,24 @@ export function useFileUpload() {
     });
   }
 
+  /**
+   * @param {string} url
+   */
   function addUrl(url) {
-    update(files => {
+    update(/** @param {UploadItem[]} files */ files => {
       try {
         validateUrl(url);
         return [...files, { url, type: 'url', status: 'pending' }];
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         console.error('Error adding URL:', error.message);
         return files;
       }
     });
   }
 
+  /**
+   * @param {number} index
+   */
   function removeFile(index) {
     update(files => files.filter((_, i) => i !== index));
   }
@@ -67,6 +107,10 @@ export function useFileUpload() {
     update(() => []);
   }
 
+  /**
+   * @param {string} mimeType
+   * @returns {string}
+   */
   function getFileType(mimeType) {
     if (mimeType.startsWith('image/')) return 'image';
     if (mimeType.startsWith('video/')) return 'video';
@@ -74,7 +118,13 @@ export function useFileUpload() {
     return 'document';
   }
 
+  /**
+   * @param {HTMLElement} node
+   */
   function useFileUploadAction(node) {
+    /**
+     * @param {DragEvent} event
+     */
     const handleDragOver = (event) => {
       event.preventDefault();
       node.classList.add('drag-over');
@@ -84,11 +134,16 @@ export function useFileUpload() {
       node.classList.remove('drag-over');
     };
 
+    /**
+     * @param {DragEvent} event
+     */
     const handleDrop = (event) => {
       event.preventDefault();
       node.classList.remove('drag-over');
-      const droppedFiles = event.dataTransfer.files;
-      addFiles(droppedFiles);
+      if (event.dataTransfer && event.dataTransfer.files) {
+        const droppedFiles = event.dataTransfer.files;
+        addFiles(Array.from(droppedFiles));
+      }
     };
 
     node.addEventListener('dragover', handleDragOver);

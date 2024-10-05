@@ -42,8 +42,6 @@ declare module '$env/static/private' {
 	export const DriverData: string;
 	export const EDITOR: string;
 	export const export: string;
-	export const FPS_BROWSER_APP_PROFILE_STRING: string;
-	export const FPS_BROWSER_USER_PROFILE_STRING: string;
 	export const GameFirstUserPath: string;
 	export const GameTurbo: string;
 	export const GIT_ASKPASS: string;
@@ -163,8 +161,6 @@ declare module '$env/dynamic/private' {
 		DriverData: string;
 		EDITOR: string;
 		export: string;
-		FPS_BROWSER_APP_PROFILE_STRING: string;
-		FPS_BROWSER_USER_PROFILE_STRING: string;
 		GameFirstUserPath: string;
 		GameTurbo: string;
 		GIT_ASKPASS: string;
