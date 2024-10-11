@@ -55,9 +55,13 @@ import TextField from '@smui/textfield';
     }
   }
 
-  function handleFilesAdded(event: CustomEvent) {
+  function handleFilesAdded(event) {
+  console.log('Files added event:', event);
+  // You can then access event.detail if it exists
+  if (event.detail) {
     console.log('Files added:', event.detail);
   }
+}
 
   async function handleDownloadAll() {
     if ($files.length === 0) {

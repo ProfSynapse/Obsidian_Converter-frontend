@@ -1,26 +1,27 @@
-<script>
+<script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { files } from '$lib/stores/files';
-  import { apiKey } from '$lib/stores/apiKey';
+  import { files } from '$lib/stores/files.js';
   import { Document, VideoCamera, MusicalNote, Photo, Link } from 'svelte-hero-icons';
+  import type { ComponentType } from 'svelte';
+  import type { IconSource } from 'svelte-hero-icons';
 
   const dispatch = createEventDispatcher();
 
-  export let dragOver = false;
-  export let urlInput = '';
+  let dragOver = false;
+  let urlInput = '';
 
-  function addFiles(selectedFiles) {
-    const filesArray = Array.isArray(selectedFiles)
-      ? selectedFiles
-      : Array.from(selectedFiles);
+  function addFiles(selectedFiles: FileList | File[]) {
+    const filesArray = Array.from(selectedFiles);
     for (let file of filesArray) {
-      files.addFile({
-        id: crypto.randomUUID(),
-        file,
-        name: file.name,
-        type: getFileType(file.type),
-        status: 'pending',
-      });
+      if (file instanceof File) {
+        files.addFile({
+          id: crypto.randomUUID(),
+          file,
+          name: file.name,
+          type: getFileType(file.type),
+          status: 'pending',
+        });
+      }
     }
     dispatch('filesAdded');
   }
@@ -39,19 +40,15 @@
     }
   }
 
-  function removeFile(id) {
-    files.removeFile(id);
-  }
-
-  function handleFilesSelected(event) {
-    const selectedFiles =
-      event.target.files || (event.dataTransfer ? event.dataTransfer.files : null);
+  function handleFilesSelected(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const selectedFiles = target.files || (event as DragEvent).dataTransfer?.files;
     if (selectedFiles) {
-      addFiles(Array.from(selectedFiles));
+      addFiles(selectedFiles);
     }
   }
 
-  function handleDragOver(event) {
+  function handleDragOver(event: DragEvent) {
     event.preventDefault();
     dragOver = true;
   }
@@ -60,30 +57,29 @@
     dragOver = false;
   }
 
-  function handleDrop(event) {
+  function handleDrop(event: DragEvent) {
     event.preventDefault();
     dragOver = false;
     handleFilesSelected(event);
   }
 
-  function getFileType(mimeType) {
-    if (mimeType) {
-      if (mimeType.startsWith('image/')) return 'image';
-      if (mimeType.startsWith('video/')) return 'video';
-      if (mimeType.startsWith('audio/')) return 'audio';
-    }
-    return 'document';
+  function getFileType(mimeType: string): import('$lib/stores/files').FileType {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.startsWith('text/')) return 'document';
+    return 'unknown';
   }
 
-  function getFileIcon(type) {
-    const iconMap = {
+  function getFileIcon(type: string): ComponentType {
+    const iconMap: Record<string, IconSource> = {
       document: Document,
       video: VideoCamera,
       audio: MusicalNote,
       image: Photo,
       url: Link,
     };
-    return iconMap[type] || Document;
+    return (iconMap[type] || Document) as unknown as ComponentType;
   }
 </script>
 
@@ -123,22 +119,16 @@
 
   {#if $files.length > 0}
     <ul class="file-list">
-      {#each $files as file, index}
+      {#each $files as file (file.id)}
         <li class="file-item">
           <div class="file-info">
             <svelte:component this={getFileIcon(file.type)} class="file-icon" />
             <span>{file.name}</span>
           </div>
-          <button class="remove-file" on:click={() => removeFile(index)}>×</button>
+          <button class="remove-file" on:click={() => files.removeFile(file.id)}>×</button>
         </li>
       {/each}
     </ul>
-  {/if}
-
-  {#if $files.length > 0 && $apiKey}
-    <button class="btn convert-btn" on:click={() => dispatch('startConversion')}>
-      Start Conversion
-    </button>
   {/if}
 </div>
 
@@ -186,6 +176,9 @@
   }
 
   .file-list {
+    list-style-type: none;
+    padding: 0;
+    margin-top: 20px;
     max-height: 200px;
     overflow-y: auto;
   }
@@ -194,31 +187,27 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 5px 0;
+    padding: 10px;
+    border-bottom: 1px solid var(--color-third);
+  }
 
-    .file-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-    .remove-file {
-      background: none;
-      border: none;
-      font-size: 1.5em;
-      cursor: pointer;
-      color: var(--color-danger);
-    }
+  .remove-file {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: var(--color-danger);
   }
 
   :global(.file-icon) {
     width: 24px;
     height: 24px;
-  }
-
-  .convert-btn {
-    align-self: center;
-    font-size: 1.1em;
-    padding: 12px 24px;
+    color: var(--color-prime);
   }
 </style>
