@@ -1,16 +1,20 @@
-<script lang="ts">
+<!-- src/lib/components/FileUploader/FileUploader.svelte -->
+<script>
   import { createEventDispatcher } from 'svelte';
-  import { files } from '$lib/stores/files.js';
-  import { Document, VideoCamera, MusicalNote, Photo, Link } from 'svelte-hero-icons';
-  import type { ComponentType } from 'svelte';
-  import type { IconSource } from 'svelte-hero-icons';
+  import { files } from '$lib/stores/files';
+  import { getFileIconComponent } from '$lib/utils/iconUtils';
+  import FileListComponent from '$lib/components/FileList.svelte';
 
   const dispatch = createEventDispatcher();
 
   let dragOver = false;
   let urlInput = '';
 
-  function addFiles(selectedFiles: FileList | File[]) {
+  /**
+   * Adds files to the store
+   * @param {FileList | File[]} selectedFiles - A list of files selected by the user
+   */
+  function addFiles(selectedFiles) {
     const filesArray = Array.from(selectedFiles);
     for (let file of filesArray) {
       if (file instanceof File) {
@@ -26,6 +30,9 @@
     dispatch('filesAdded');
   }
 
+  /**
+   * Adds a URL as a file to the store
+   */
   function addUrl() {
     if (urlInput.trim()) {
       files.addFile({
@@ -37,33 +44,57 @@
       });
       urlInput = '';
       dispatch('filesAdded');
+    } else {
+      console.warn('URL input is empty');
     }
   }
 
-  function handleFilesSelected(event: Event) {
-    const target = event.target as HTMLInputElement;
-    const selectedFiles = target.files || (event as DragEvent).dataTransfer?.files;
+  /**
+   * Handles file selection event
+   * @param {Event} event - The file input change or drop event
+   */
+  function handleFilesSelected(event) {
+    const target = event.target;
+    const selectedFiles = target.files || event.dataTransfer?.files;
     if (selectedFiles) {
       addFiles(selectedFiles);
+    } else {
+      console.warn('No files selected');
     }
   }
 
-  function handleDragOver(event: DragEvent) {
+  /**
+   * Handles drag-over event to indicate drag state
+   * @param {DragEvent} event - The drag-over event
+   */
+  function handleDragOver(event) {
     event.preventDefault();
     dragOver = true;
   }
 
+  /**
+   * Handles drag-leave event to reset drag state
+   */
   function handleDragLeave() {
     dragOver = false;
   }
 
-  function handleDrop(event: DragEvent) {
+  /**
+   * Handles drop event to add files
+   * @param {DragEvent} event - The drop event
+   */
+  function handleDrop(event) {
     event.preventDefault();
     dragOver = false;
     handleFilesSelected(event);
   }
 
-  function getFileType(mimeType: string): import('$lib/stores/files').FileType {
+  /**
+   * Gets the file type based on MIME type
+   * @param {string} mimeType - The MIME type of the file
+   * @returns {string} The type of the file (e.g., image, video, audio, document, or unknown)
+   */
+  function getFileType(mimeType) {
     if (mimeType.startsWith('image/')) return 'image';
     if (mimeType.startsWith('video/')) return 'video';
     if (mimeType.startsWith('audio/')) return 'audio';
@@ -71,42 +102,20 @@
     return 'unknown';
   }
 
-  function getFileIcon(type: string): ComponentType {
-    const iconMap: Record<string, IconSource> = {
-      document: Document,
-      video: VideoCamera,
-      audio: MusicalNote,
-      image: Photo,
-      url: Link,
-    };
-    return (iconMap[type] || Document) as unknown as ComponentType;
+  // Function to handle file removal
+  function handleRemoveFile(file) {
+    files.removeFile(file.id);
+    dispatch('fileRemoved');
+  }
+
+  // Function to determine if a file should be displayed (e.g., all pending files)
+  function isPendingFile(file) {
+    return file.status === 'pending';
   }
 </script>
 
 <div class="file-uploader container">
-  <div
-    class="dropzone"
-    class:drag-over={dragOver}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
-    on:drop={handleDrop}
-    role="button"
-    tabindex="0"
-    aria-label="Drop files here or click to select"
-  >
-    <label for="file-input" class="file-label">
-      <span class="icon">📁</span>
-      <span>Drag & drop files here or click to select</span>
-    </label>
-    <input
-      id="file-input"
-      type="file"
-      multiple
-      on:change={handleFilesSelected}
-      style="display: none;"
-    />
-  </div>
-
+  <!-- URL Input -->
   <div class="url-input">
     <input
       type="text"
@@ -117,97 +126,90 @@
     <button class="btn" on:click={addUrl}>Add URL</button>
   </div>
 
-  {#if $files.length > 0}
-    <ul class="file-list">
-      {#each $files as file (file.id)}
-        <li class="file-item">
-          <div class="file-info">
-            <svelte:component this={getFileIcon(file.type)} class="file-icon" />
-            <span>{file.name}</span>
-          </div>
-          <button class="remove-file" on:click={() => files.removeFile(file.id)}>×</button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+  <!-- File Dropzone -->
+  <div
+    class="dropzone"
+    class:drag-over={dragOver}
+    on:dragover={handleDragOver}
+    on:dragleave={handleDragLeave}
+    on:drop={handleDrop}
+    on:click={() => document.getElementById('file-input').click()}
+    role="button"
+    tabindex="0"
+    aria-label="Drop files here or click to select"
+  >
+    <input
+      id="file-input"
+      type="file"
+      multiple
+      on:change={handleFilesSelected}
+      style="display: none;"
+    />
+    <div class="dropzone-content">
+      <span class="icon">📁</span>
+      <span>Drag & drop files here or click to select</span>
+      <button class="btn upload-btn" on:click|stopPropagation={() => document.getElementById('file-input').click()}>
+        Browse Files
+      </button>
+    </div>
+  </div>
+
+  <!-- File List using FileListComponent -->
+  <FileListComponent
+    title="Files to Convert"
+    actionLabel="×"
+    onAction={handleRemoveFile}
+    filterFunction={isPendingFile}
+    getStatusColor={() => 'var(--color-text)'}
+    isDisabled={() => false}
+  />
 </div>
 
-<style lang="scss">
+<style>
   .file-uploader {
     display: flex;
     flex-direction: column;
     gap: 20px;
   }
 
-  .dropzone {
-    border: 3px dashed var(--color-prime);
-    border-radius: var(--rounded-corners);
-    padding: 40px;
-    text-align: center;
-    transition: all var(--transition-speed);
-    cursor: pointer;
-
-    &:hover,
-    &.drag-over {
-      background-color: rgba(0, 169, 157, 0.1);
-      border-color: var(--color-second);
-    }
-  }
-
-  .file-label {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-
-    .icon {
-      font-size: 48px;
-      margin-bottom: 10px;
-    }
-  }
-
   .url-input {
     display: flex;
     gap: 10px;
-
-    .input {
-      flex-grow: 1;
-    }
-  }
-
-  .file-list {
-    list-style-type: none;
-    padding: 0;
-    margin-top: 20px;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .file-item {
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 10px;
-    border-bottom: 1px solid var(--color-third);
   }
 
-  .file-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .remove-file {
-    background: none;
-    border: none;
-    font-size: 1.5em;
+  .dropzone {
+    border: 2px dashed var(--color-prime);
+    border-radius: var(--rounded-corners);
+    padding: 40px;
+    text-align: center;
+    position: relative;
     cursor: pointer;
-    color: var(--color-danger);
+    transition: background-color var(--transition-speed);
   }
 
-  :global(.file-icon) {
-    width: 24px;
-    height: 24px;
+  .dropzone.drag-over {
+    background-color: rgba(0, 169, 157, 0.1);
+  }
+
+  .dropzone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .dropzone .icon {
+    font-size: 3rem;
     color: var(--color-prime);
+  }
+
+  .upload-btn {
+    background-color: var(--color-second);
+    color: white;
+  }
+
+  .upload-btn:hover {
+    background-color: var(--color-prime);
   }
 </style>

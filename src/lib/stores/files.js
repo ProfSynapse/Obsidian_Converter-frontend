@@ -1,61 +1,67 @@
 // src/lib/stores/files.js
+
 import { writable } from 'svelte/store';
 
 /**
- * @typedef {'pending' | 'converting' | 'completed' | 'error'} FileStatus
+ * Possible statuses for a file
+ * @type {'pending' | 'converting' | 'completed' | 'error'}
  */
+const FileStatus = {
+  PENDING: 'pending',
+  CONVERTING: 'converting',
+  COMPLETED: 'completed',
+  ERROR: 'error',
+};
 
 /**
- * @typedef {'image' | 'video' | 'audio' | 'document' | 'url' | 'unknown'} FileType
+ * Possible types for a file
+ * @type {'image' | 'video' | 'audio' | 'document' | 'url' | 'unknown'}
  */
-
-/**
- * @typedef {Object} File
- * @property {string} id - Unique identifier for the file
- * @property {string} name - Name of the file
- * @property {FileType} type - Type of the file
- * @property {FileStatus} status - Current status of the file
- * @property {Blob} [file] - The actual file object (optional for URLs)
- * @property {string} [url] - The URL of the file (for URL type files)
- */
-
-/**
- * @typedef {Object} FilesStore
- * @property {(run: (value: File[]) => void) => () => void} subscribe - Svelte store subscribe function
- * @property {(file: File) => void} addFile - Adds a new file to the store
- * @property {(id: string) => void} removeFile - Removes a file from the store by id
- * @property {(id: string, data: Partial<File>) => void} updateFile - Updates a file in the store
- * @property {() => void} clearFiles - Clears all files from the store
- * @property {() => File[]} getFiles - Gets all files from the store
- */
+const FileType = {
+  IMAGE: 'image',
+  VIDEO: 'video',
+  AUDIO: 'audio',
+  DOCUMENT: 'document',
+  URL: 'url',
+  UNKNOWN: 'unknown',
+};
 
 /**
  * Creates and returns a files store
- * @returns {FilesStore}
+ * @returns {Object} - The files store with methods
  */
 function createFilesStore() {
-  const { subscribe, update, set } = writable(/** @type {File[]} */ ([]));
+  const { subscribe, update, set } = writable([]);
 
   return {
     subscribe,
     /**
-     * @param {File} file
+     * Adds a new file to the store
+     * @param {Object} file - The file object
      */
     addFile: (file) => update(files => [...files, file]),
     /**
-     * @param {string} id
+     * Removes a file from the store by id
+     * @param {string} id - The file's unique identifier
      */
     removeFile: (id) => update(files => files.filter(f => f.id !== id)),
     /**
-     * @param {string} id
-     * @param {Partial<File>} data
+     * Updates a file in the store
+     * @param {string} id - The file's unique identifier
+     * @param {Object} data - Partial data to update the file
      */
     updateFile: (id, data) => update(files =>
-      files.map(file => file.id === id ? { ...file, ...data } : file)
+      files.map(file => (file.id === id ? { ...file, ...data } : file))
     ),
+    /**
+     * Clears all files from the store
+     */
     clearFiles: () => set([]),
+    /**
+     * Retrieves all files from the store
+     * @returns {Array} - Array of file objects
+     */
     getFiles: () => {
-      /** @type {File[]} */
       let files = [];
       subscribe(value => { files = value; })();
       return files;
@@ -63,5 +69,7 @@ function createFilesStore() {
   };
 }
 
-/** @type {FilesStore} */
 export const files = createFilesStore();
+
+// Exporting FileType and FileStatus as plain objects for use in components if needed
+export { FileType, FileStatus };

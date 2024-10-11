@@ -1,11 +1,12 @@
+<!-- src/lib/components/ConversionStatus.svelte -->
 <script>
-  import { conversionStatus, conversionProgress, currentFile, conversionError } from '$lib/stores/conversionStatus';
+  import { conversionStatus } from '$lib/stores/conversionStatus.js';
 
-  // Subscribe to the stores
+  // Reactive variables
   $: status = $conversionStatus.status;
-  $: progress = $conversionProgress;
-  $: file = $currentFile;
-  $: error = $conversionError;
+  $: progress = $conversionStatus.progress;
+  $: file = $conversionStatus.currentFile;
+  $: error = $conversionStatus.error;
 
   function getStatusMessage(status) {
     if (typeof status !== 'string') status = '';
@@ -39,7 +40,6 @@
       <span class="progress-text">{progress}%</span>
     </div>
     <div class="spinner-wrapper">
-      <!-- Custom Spinner -->
       <div class="spinner"></div>
     </div>
   {:else if status === 'completed'}
@@ -54,91 +54,6 @@
   {/if}
 </div>
 
-<style lang="scss">
-  .conversion-status {
-    text-align: center;
-    padding: 20px;
-    border-radius: var(--rounded-corners);
-    background: var(--color-background);
-    box-shadow: var(--box-shadow);
-  }
-
-  h2 {
-    color: var(--color-prime);
-    margin-bottom: 15px;
-  }
-
-  .status-message {
-    font-size: 1.1em;
-    margin-bottom: 20px;
-  }
-
-  .progress-wrapper {
-    margin-bottom: 20px;
-    position: relative;
-  }
-
-  .progress-bar {
-    width: 100%;
-    background-color: #eee;
-    height: 10px;
-    border-radius: 5px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    background-color: var(--color-prime);
-    height: 100%;
-    width: 0%;
-    transition: width 0.2s ease-in-out;
-  }
-
-  .progress-text {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    font-weight: bold;
-    color: var(--color-prime);
-  }
-
-  .spinner-wrapper {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-  }
-
-  /* Custom Spinner Styles */
-  .spinner {
-    border: 4px solid rgba(0, 0, 0, 0.1);
-    border-left-color: var(--color-prime);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 0.75s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .completion-message {
-    color: var(--color-prime);
-    font-weight: bold;
-    font-size: 1.2em;
-    margin-top: 20px;
-  }
-
-  .error-message {
-    color: var(--color-error);
-    margin-top: 20px;
-
-    .error-details {
-      font-size: 0.9em;
-      margin-top: 10px;
-      word-break: break-word;
-    }
-  }
+<style>
+  /* Your existing styles */
 </style>

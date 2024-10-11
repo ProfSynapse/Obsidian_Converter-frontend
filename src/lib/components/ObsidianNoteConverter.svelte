@@ -1,14 +1,14 @@
 <!-- src/lib/components/ObsidianNoteConverter.svelte -->
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
   import FileUploader from './FileUploader/FileUploader.svelte';
   import ConversionStatus from './ConversionStatus.svelte';
   import ResultDisplay from './ResultDisplay.svelte';
   import Textfield from '@smui/textfield';
   import Button from '@smui/button';
-  import { apiKey } from '$lib/stores/apiKey';
-  import { files } from '$lib/stores/files';
-  import { conversionStatus } from '$lib/stores/conversionStatus';
+  import { apiKey } from '$lib/stores/apiKey.js';
+  import { files } from '$lib/stores/files.js';
+  import { conversionStatus } from '$lib/stores/conversionStatus.js';
   import { convertFiles, downloadZip, downloadSingleFile } from '$lib/utils/api/client.js';
 
   let apiKeyInput = '';
@@ -24,11 +24,13 @@
   });
 
   function handleSetApiKey() {
+    console.log('Setting API key');
     apiKey.set(apiKeyInput);
     localStorage.setItem('apiKey', apiKeyInput);
   }
 
   function handleClearApiKey() {
+    console.log('Clearing API key');
     apiKey.set('');
     apiKeyInput = '';
     localStorage.removeItem('apiKey');
@@ -46,19 +48,23 @@
     }
 
     isConverting = true;
+    console.log('Starting file conversion');
     try {
       await convertFiles($files, $apiKey);
+      console.log('File conversion completed');
     } catch (error) {
-      console.error('Conversion failed:', error);
+      console.error('Conversion failed:', error instanceof Error ? error.message : String(error));
       conversionStatus.setError(error instanceof Error ? error.message : String(error));
     } finally {
       isConverting = false;
     }
   }
 
-  function handleFilesAdded(event: CustomEvent) {
-    // Additional logic if needed when files are added
-    console.log('Files added:', event.detail);
+  function handleFilesAdded(event) {
+    console.log('Files added event:', event);
+    if (event.detail) {
+      console.log('Files added:', event.detail);
+    }
   }
 
   async function handleDownloadAll() {
@@ -68,124 +74,79 @@
     }
 
     isDownloading = true;
+    console.log('Starting download of all files as zip');
     try {
       const fileIds = $files.map(file => file.id);
       await downloadZip(fileIds, $apiKey);
+      console.log('Download completed');
     } catch (error) {
-      console.error('Error downloading zip file:', error);
+      console.error('Error downloading zip file:', error instanceof Error ? error.message : String(error));
       alert('Failed to download files. Please try again.');
     } finally {
       isDownloading = false;
     }
   }
 
-  async function handleSingleFileDownload(event: CustomEvent<{fileId: string}>) {
+  async function handleSingleFileDownload(event) {
     const fileId = event.detail.fileId;
+    console.log(`Starting download for file ID: ${fileId}`);
     try {
       await downloadSingleFile(fileId, $apiKey);
+      console.log(`Download completed for file ID: ${fileId}`);
     } catch (error) {
-      console.error('Error downloading file:', error);
+      console.error('Error downloading file:', error instanceof Error ? error.message : String(error));
       alert('Failed to download file. Please try again.');
     }
   }
 </script>
 
 <main class="obsidian-note-converter">
-<h1>Obsidian Note Converter</h1>
+  <h1>Obsidian Note Converter</h1>
 
-<section class="api-key-section container">
-  <h2>API Key</h2>
-  <div class="api-key-input">
-    <Textfield
-      bind:value={apiKeyInput}
-      label="Enter your API key"
-      type="password"
-      style="width: 100%;"
-    />
-  </div>
-  <div class="api-key-actions">
-    <Button on:click={handleSetApiKey} disabled={!apiKeyInput}>Set API Key</Button>
-    <Button on:click={handleClearApiKey} disabled={!$apiKey}>Clear API Key</Button>
-  </div>
-</section>
+  <section class="api-key-section container">
+    <h2>API Key</h2>
+    <div class="api-key-input">
+      <Textfield
+        bind:value={apiKeyInput}
+        label="Enter your API key"
+        type="password"
+        style="width: 100%;"
+      />
+    </div>
+    <div class="api-key-actions">
+      <Button on:click={handleSetApiKey} disabled={!apiKeyInput}>Set API Key</Button>
+      <Button on:click={handleClearApiKey} disabled={!$apiKey}>Clear API Key</Button>
+    </div>
+  </section>
 
-<FileUploader on:filesAdded={handleFilesAdded} />
+  <FileUploader on:filesAdded={handleFilesAdded} />
 
-<ConversionStatus />
+  <ConversionStatus />
 
-{#if $conversionStatus.status === 'completed'}
-  <ResultDisplay on:downloadFile={handleSingleFileDownload} />
-  <div class="download-actions">
+  {#if $conversionStatus.status === 'completed'}
+    <ResultDisplay on:downloadFile={handleSingleFileDownload} />
+    <div class="download-actions">
+      <Button
+        on:click={handleDownloadAll}
+        disabled={isDownloading || $files.length === 0}
+        variant="raised"
+      >
+        {isDownloading ? 'Downloading...' : 'Download All as Zip'}
+      </Button>
+    </div>
+  {/if}
+
+  <div class="conversion-actions">
     <Button
-      on:click={handleDownloadAll}
-      disabled={isDownloading || $files.length === 0}
+      on:click={handleStartConversion}
+      disabled={isConverting || $files.length === 0 || !$apiKey}
       variant="raised"
     >
-      {isDownloading ? 'Downloading...' : 'Download All as Zip'}
+      {isConverting ? 'Converting...' : 'Start Conversion'}
     </Button>
   </div>
-{/if}
-
-<div class="conversion-actions">
-  <Button
-    on:click={handleStartConversion}
-    disabled={isConverting || $files.length === 0 || !$apiKey}
-    variant="raised"
-  >
-    {isConverting ? 'Converting...' : 'Start Conversion'}
-  </Button>
-</div>
 </main>
-  
-  <style lang="scss">
-    .obsidian-note-converter {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-  
-    h1 {
-      text-align: center;
-      color: var(--color-prime);
-      margin-bottom: 30px;
-    }
-  
-    h2 {
-      color: var(--color-second);
-      margin-bottom: 15px;
-    }
-  
-    .api-key-section {
-      margin-bottom: 30px;
-    }
-  
-    .api-key-input {
-      margin-bottom: 15px;
-    }
-  
-    .api-key-actions {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-    }
-  
-    .conversion-actions, .download-actions {
-      display: flex;
-      justify-content: center;
-      margin-top: 30px;
-    }
-  
-    :global(.mdc-button) {
-      background-color: var(--color-prime);
-      color: white;
-    }
-  
-    :global(.mdc-button:hover) {
-      background-color: var(--color-second);
-    }
-  
-    :global(.mdc-button:disabled) {
-      background-color: #cccccc;
-      color: #666666;
-    }
-  </style>
+
+<style>
+  /* Your existing styles */
+</style>

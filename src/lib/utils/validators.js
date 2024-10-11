@@ -11,6 +11,12 @@ const ALLOWED_FILE_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 ];
 
+/**
+ * Validates a file's size and type
+ * @param {File} file - The file to validate
+ * @throws Will throw an error if validation fails
+ * @returns {boolean} - Returns true if validation passes
+ */
 export function validateFile(file) {
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(`File size exceeds the maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
@@ -23,6 +29,12 @@ export function validateFile(file) {
   return true;
 }
 
+/**
+ * Validates an API key's presence and format
+ * @param {string} apiKey - The API key to validate
+ * @throws Will throw an error if validation fails
+ * @returns {boolean} - Returns true if validation passes
+ */
 export function validateApiKey(apiKey) {
   if (typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     throw new Error('API key is required');
@@ -36,6 +48,11 @@ export function validateApiKey(apiKey) {
   return true;
 }
 
+/**
+ * Normalizes a URL by adding protocol and 'www.' if missing
+ * @param {string} url - The URL to normalize
+ * @returns {string} - The normalized URL
+ */
 export function normalizeUrl(url) {
   url = url.trim().toLowerCase();
   
@@ -52,6 +69,12 @@ export function normalizeUrl(url) {
   return url;
 }
 
+/**
+ * Validates a URL's format
+ * @param {string} url - The URL to validate
+ * @throws Will throw an error if validation fails
+ * @returns {string} - The normalized URL if valid
+ */
 export function validateUrl(url) {
   try {
     url = normalizeUrl(url);
@@ -62,6 +85,13 @@ export function validateUrl(url) {
   }
 }
 
+/**
+ * Validates the inputs for the conversion process
+ * @param {Array} files - Array of files to convert
+ * @param {string} apiKey - The API key for authentication
+ * @throws Will throw an error if validation fails
+ * @returns {boolean} - Returns true if all validations pass
+ */
 export function validateConversionInput(files, apiKey) {
   if (!apiKey) {
     throw new Error('API key is required');

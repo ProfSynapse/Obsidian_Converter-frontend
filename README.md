@@ -40,7 +40,7 @@ obsidian-note-converter-frontend/
 ├── README.md
 ├── svelte.config.js
 └── vite.config.js
-└── jsconfig.js
+└── jsconfig.json
 
 # Obsidian Note Converter Frontend Documentation
 
