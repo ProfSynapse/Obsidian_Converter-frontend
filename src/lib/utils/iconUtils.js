@@ -1,13 +1,13 @@
-import { Document, VideoCamera, MusicalNote, Photo, Link } from 'svelte-hero-icons';
+// src/lib/utils/iconUtils.js
 
 const iconMap = {
-  document: Document,
-  video: VideoCamera,
-  audio: MusicalNote,
-  image: Photo,
-  url: Link,
+  document: '📄',
+  video: '🎥',
+  audio: '🎵',
+  image: '🖼️',
+  url: '🔗',
 };
 
-export function getFileIconComponent(type) {
-  return iconMap[type] || Document;
+export function getFileIcon(type) {
+  return iconMap[type] || '📁';
 }

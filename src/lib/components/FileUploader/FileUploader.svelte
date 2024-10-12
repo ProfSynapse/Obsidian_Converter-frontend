@@ -1,99 +1,79 @@
 <!-- src/lib/components/FileUploader/FileUploader.svelte -->
 <script>
   import { createEventDispatcher } from 'svelte';
-  import { files } from '$lib/stores/files';
-  import { getFileIconComponent } from '$lib/utils/iconUtils';
+  import { files } from '$lib/stores/files.js';
   import FileListComponent from '$lib/components/FileList.svelte';
 
   const dispatch = createEventDispatcher();
 
   let dragOver = false;
   let urlInput = '';
+  let fileInputElement;
 
-  /**
-   * Adds files to the store
-   * @param {FileList | File[]} selectedFiles - A list of files selected by the user
-   */
+  function generateUniqueId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  }
+
   function addFiles(selectedFiles) {
     const filesArray = Array.from(selectedFiles);
     for (let file of filesArray) {
       if (file instanceof File) {
-        files.addFile({
-          id: crypto.randomUUID(),
+        const newFile = {
+          id: generateUniqueId(),
           file,
           name: file.name,
           type: getFileType(file.type),
           status: 'pending',
-        });
+        };
+        files.addFile(newFile);
+        console.log('Added file:', newFile);
       }
     }
     dispatch('filesAdded');
   }
 
-  /**
-   * Adds a URL as a file to the store
-   */
   function addUrl() {
     if (urlInput.trim()) {
-      files.addFile({
-        id: crypto.randomUUID(),
+      const newFile = {
+        id: generateUniqueId(),
         url: urlInput.trim(),
         name: urlInput.trim(),
         type: 'url',
         status: 'pending',
-      });
+      };
+      files.addFile(newFile);
+      console.log('Added URL:', newFile);
       urlInput = '';
       dispatch('filesAdded');
-    } else {
-      console.warn('URL input is empty');
     }
   }
 
-  /**
-   * Handles file selection event
-   * @param {Event} event - The file input change or drop event
-   */
   function handleFilesSelected(event) {
-    const target = event.target;
-    const selectedFiles = target.files || event.dataTransfer?.files;
+    const selectedFiles = event.target.files || event.dataTransfer?.files;
     if (selectedFiles) {
       addFiles(selectedFiles);
-    } else {
-      console.warn('No files selected');
+
+      if (fileInputElement) {
+        fileInputElement.value = '';
+      }
     }
   }
 
-  /**
-   * Handles drag-over event to indicate drag state
-   * @param {DragEvent} event - The drag-over event
-   */
   function handleDragOver(event) {
     event.preventDefault();
     dragOver = true;
   }
 
-  /**
-   * Handles drag-leave event to reset drag state
-   */
   function handleDragLeave() {
     dragOver = false;
   }
 
-  /**
-   * Handles drop event to add files
-   * @param {DragEvent} event - The drop event
-   */
   function handleDrop(event) {
     event.preventDefault();
     dragOver = false;
     handleFilesSelected(event);
   }
 
-  /**
-   * Gets the file type based on MIME type
-   * @param {string} mimeType - The MIME type of the file
-   * @returns {string} The type of the file (e.g., image, video, audio, document, or unknown)
-   */
   function getFileType(mimeType) {
     if (mimeType.startsWith('image/')) return 'image';
     if (mimeType.startsWith('video/')) return 'video';
@@ -102,38 +82,43 @@
     return 'unknown';
   }
 
-  // Function to handle file removal
   function handleRemoveFile(file) {
     files.removeFile(file.id);
+    console.log('Removed file:', file);
     dispatch('fileRemoved');
   }
 
-  // Function to determine if a file should be displayed (e.g., all pending files)
   function isPendingFile(file) {
     return file.status === 'pending';
   }
 </script>
 
-<div class="file-uploader container">
-  <!-- URL Input -->
+<section class="file-uploader">
+  <h2>File Upload</h2>
   <div class="url-input">
     <input
       type="text"
       bind:value={urlInput}
       placeholder="Enter a URL to convert"
       class="input"
+      on:keypress={(e) => { if (e.key === 'Enter') addUrl(); }}
+      aria-label="URL Input"
     />
-    <button class="btn" on:click={addUrl}>Add URL</button>
+    <button class="btn btn-icon" on:click={addUrl} aria-label="Add URL">
+      <span class="icon">➕</span>
+    </button>
   </div>
+  <p class="url-info">
+    Enter a URL to convert or use the file uploader below.
+  </p>
 
-  <!-- File Dropzone -->
   <div
     class="dropzone"
     class:drag-over={dragOver}
     on:dragover={handleDragOver}
     on:dragleave={handleDragLeave}
     on:drop={handleDrop}
-    on:click={() => document.getElementById('file-input').click()}
+    on:click={() => fileInputElement.click()}
     role="button"
     tabindex="0"
     aria-label="Drop files here or click to select"
@@ -143,39 +128,104 @@
       type="file"
       multiple
       on:change={handleFilesSelected}
+      bind:this={fileInputElement}
       style="display: none;"
     />
     <div class="dropzone-content">
       <span class="icon">📁</span>
       <span>Drag & drop files here or click to select</span>
-      <button class="btn upload-btn" on:click|stopPropagation={() => document.getElementById('file-input').click()}>
+      <button class="btn" on:click|stopPropagation={() => fileInputElement.click()} aria-label="Browse Files">
         Browse Files
       </button>
     </div>
   </div>
 
-  <!-- File List using FileListComponent -->
   <FileListComponent
     title="Files to Convert"
-    actionLabel="×"
     onAction={handleRemoveFile}
     filterFunction={isPendingFile}
     getStatusColor={() => 'var(--color-text)'}
     isDisabled={() => false}
   />
-</div>
+</section>
 
 <style>
   .file-uploader {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    border: 2px solid var(--color-prime);
+    padding: 20px;
+    border-radius: var(--rounded-corners);
+    margin-bottom: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+  }
+
+  h2 {
+    color: var(--color-prime);
+    margin-bottom: 15px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
   }
 
   .url-input {
     display: flex;
     gap: 10px;
+    margin-bottom: 5px;
+  }
+
+  .input {
+    flex-grow: 1;
+    padding: 10px;
+    border: 2px solid var(--color-prime);
+    border-radius: var(--rounded-corners);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color var(--transition-speed);
+  }
+
+  .input:focus {
+    border-color: var(--color-second);
+  }
+
+  .url-info {
+    margin-top: 5px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+  }
+
+  .btn {
+    background-color: var(--color-prime);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--rounded-corners);
+    cursor: pointer;
+    transition: background-image var(--transition-speed), box-shadow var(--transition-speed);
+    font-size: 1rem;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn:hover {
+    background-image: var(--gradient-button);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .btn:active {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .btn-icon {
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
     align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+
+  .btn-icon .icon {
+    font-size: 1.5rem;
   }
 
   .dropzone {
@@ -186,6 +236,8 @@
     position: relative;
     cursor: pointer;
     transition: background-color var(--transition-speed);
+    margin-bottom: 20px;
+    background: var(--color-background);
   }
 
   .dropzone.drag-over {
@@ -202,14 +254,5 @@
   .dropzone .icon {
     font-size: 3rem;
     color: var(--color-prime);
-  }
-
-  .upload-btn {
-    background-color: var(--color-second);
-    color: white;
-  }
-
-  .upload-btn:hover {
-    background-color: var(--color-prime);
   }
 </style>

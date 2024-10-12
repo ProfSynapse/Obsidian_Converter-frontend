@@ -1,76 +1,65 @@
 <!-- src/routes/+layout.svelte -->
-<script>
-    import { onMount } from 'svelte';
-    import { apiKey } from '$lib/stores';
-    import { COLORS } from '$lib/constants.js';
-    import '$lib/styles/global.css';
-  
-    onMount(() => {
-      const storedApiKey = localStorage.getItem('obsidian_note_converter_api_key');
-      if (storedApiKey) {
-        apiKey.set(storedApiKey);
-      }
-    });
-  </script>
-  
-  <div class="app">
-    <header>
-      <h1>Obsidian Note Converter</h1>
-    </header>
-  
-    <main>
-      <slot></slot>
-    </main>
-  
-    <footer>
-      <p>© {new Date().getFullYear()} Obsidian Note Converter. All rights reserved.</p>
-    </footer>
-  </div>
-  
+<svelte:head>
+  <!-- Import Montserrat font and apply gradient background -->
   <style>
-    /* Layout Component Styles */
-    .app {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-      background-color: var(--color-third);
-      color: var(--color-text);
-      font-family: 'Montserrat', sans-serif;
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap');
+
+    :root {
+      --color-prime: #00a99d;
+      --color-second: #93278f;
+      --color-text: #333333;
+      --color-background: #ffffff;
+      --rounded-corners: 8px;
+      --transition-speed: 0.3s;
     }
-  
-    header {
-      background-color: var(--color-prime);
-      color: white;
-      padding: 1rem;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-  
-    h1 {
-      margin: 0;
-      font-size: 1.5rem;
-    }
-  
-    main {
-      flex: 1;
-      padding: 2rem;
-      max-width: 1200px;
-      margin: 0 auto;
-      width: 100%;
-    }
-  
-    footer {
-      background-color: var(--color-second);
-      color: white;
-      text-align: center;
-      padding: 1rem;
-      font-size: 0.8rem;
-    }
-  
-    @media (max-width: 768px) {
-      main {
-        padding: 1rem;
-      }
-    }
+
+    body {
+        margin: 0;
+        font-family: 'Montserrat', sans-serif;
+        background: linear-gradient(135deg, var(--color-prime), var(--color-second)) no-repeat;
+        background-size: cover;
+        color: var(--color-text);
+        }
+
   </style>
-  
+</svelte:head>
+
+<!-- Header Section -->
+<header class="header">
+  <div class="header-container">
+    <h1>Obsidian Note Converter</h1>
+  </div>
+</header>
+
+<!-- Main Content -->
+<main class="main-container">
+  <slot />
+</main>
+
+<style>
+  .header {
+    background-color: var(--color-prime);
+    padding: 20px 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .header-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  .header h1 {
+    margin: 0;
+    color: white;
+    text-align: center;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+  }
+
+  .main-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+</style>

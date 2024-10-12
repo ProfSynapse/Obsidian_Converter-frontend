@@ -1,48 +1,108 @@
 <!-- src/lib/components/ResultDisplay.svelte -->
 <script>
-  import FileList from './FileList.svelte';
   import { files } from '$lib/stores/files.js';
+  import { getFileIcon } from '$lib/utils/iconUtils.js';
 
-  function handleDownload(file) {
-    console.log(`Downloading file: ${file.name}`);
-  }
+  // Function to handle file download
+  export let onDownloadFile;
 
-  function isConvertedFile(file) {
-    return ['completed', 'error', 'pending'].includes(file.status);
-  }
-
+  // Function to get status color (you may have this function already)
   function getStatusColor(status) {
-    const colors = {
-      completed: 'var(--color-prime)',
-      error: 'var(--color-error)',
-      pending: 'var(--color-text)',
-    };
-    return colors[status] || 'var(--color-text)';
-  }
-
-  function isDisabled(file) {
-    return file.status !== 'completed';
-  }
-
-  const actionLabel = 'Download';
-
-  function onAction(file) {
-    handleDownload(file);
+    switch (status) {
+      case 'completed':
+        return 'green';
+      case 'error':
+        return 'red';
+      default:
+        return 'black';
+    }
   }
 </script>
 
-<div class="result-display container">
-  <h2>Converted Files</h2>
-  <FileList
-    title="Converted Files"
-    {actionLabel}
-    {onAction}
-    filterFunction={isConvertedFile}
-    {getStatusColor}
-    {isDisabled}
-  />
+<div class="result-display">
+  <h2>Conversion Results</h2>
+  {#if $files.length > 0}
+    <ul class="file-list">
+      {#each $files as file}
+        <li class="file-item">
+          <div class="file-info">
+            <span class="file-icon">{getFileIcon(file.type)}</span>
+            <span class="file-name">{file.name}</span>
+            <span class="file-status" style="color: {getStatusColor(file.status)}">
+              {file.status}
+            </span>
+          </div>
+          <!-- Download Button -->
+          {#if file.status === 'completed'}
+            <button
+              class="download-button"
+              on:click={() => onDownloadFile({ detail: { fileId: file.id } })}
+            >
+              Download
+            </button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {:else}
+    <p>No files have been converted yet.</p>
+  {/if}
 </div>
 
 <style>
-  /* Your existing styles */
+  /* Styles for result-display component */
+  .result-display {
+    border: 2px solid var(--color-prime);
+    padding: 20px;
+    border-radius: var(--rounded-corners);
+    margin-bottom: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+  }
+
+  .file-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-third);
+  }
+
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .file-icon {
+    font-size: 1.5rem;
+  }
+
+  .file-name {
+    font-weight: 500;
+  }
+
+  .file-status {
+    font-size: 0.9em;
+    font-style: italic;
+  }
+
+  .download-button {
+    background-color: var(--color-prime);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: var(--rounded-corners);
+    cursor: pointer;
+    transition: background-color var(--transition-speed);
+  }
+
+  .download-button:hover {
+    background-color: var(--color-second);
+  }
 </style>

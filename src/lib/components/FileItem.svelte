@@ -1,30 +1,33 @@
 <!-- src/lib/components/FileItem.svelte -->
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { getFileIcon } from '$lib/utils/iconUtils';
 
-  export let file; // The file object
-  export let iconComponent; // The icon component to display
-  export let actionLabel = '×'; // Label for the action button
-  export let onAction; // Function to handle the action
-  export let statusColor = 'var(--color-text)'; // Color for the status text
-  export let disabled = false; // Whether the action button is disabled
+  export let file;
+  export let actionLabel;
+  export let onAction;
+  export let statusColor = 'var(--color-text)';
+  export let disabled = false;
 
   const dispatch = createEventDispatcher();
 
-  /**
-   * Handles the action button click
-   */
   function handleAction() {
     if (onAction) {
       onAction(file);
       dispatch('action', { file });
     }
   }
+
+  let icon;
+
+  $: icon = getFileIcon(file.type);
 </script>
 
 <li class="file-item">
   <div class="file-info">
-    <svelte:component this={iconComponent} class="file-icon" />
+    {#if icon}
+      <span class="file-icon">{icon}</span>
+    {/if}
     <span class="file-name">{file.name}</span>
     {#if file.status}
       <span class="file-status" style="color: {statusColor}">
@@ -36,13 +39,13 @@
     class="action-button"
     on:click={handleAction}
     disabled={disabled}
+    aria-label="Remove File"
   >
-    {actionLabel}
+    <span class="icon-button">✖️</span>
   </button>
 </li>
 
 <style>
-  /* FileItem Component Styles */
   .file-item {
     display: flex;
     align-items: center;
@@ -62,10 +65,8 @@
     gap: 0.75rem;
   }
 
-  :global(.file-icon) {
-    width: 24px;
-    height: 24px;
-    color: var(--color-prime);
+  .file-icon {
+    font-size: 1.5rem;
   }
 
   .file-name {
@@ -80,19 +81,39 @@
   .action-button {
     background: none;
     border: none;
-    font-size: 1rem;
     cursor: pointer;
-    color: var(--color-prime);
-    transition: transform var(--transition-speed), color var(--transition-speed);
+    padding: 0;
+    margin-left: 10px;
   }
 
-  .action-button:hover {
+  .icon-button {
+    background: var(--gradient-button); /* Applied gradient */
+    color: white;
+    border: none;
+    padding: 0;
+    border-radius: 50%; /* Circular shape */
+    cursor: pointer;
+    transition: background-color var(--transition-speed), transform var(--transition-speed);
+    height: 32px;
+    width: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .icon-button:hover {
+    background-color: var(--color-error-dark); /* Solid color for visibility */
     transform: scale(1.1);
-    color: var(--color-prime-dark);
   }
 
-  .action-button:disabled {
-    opacity: 0.5;
+  .icon-button:active {
+    transform: scale(1);
+  }
+
+  .icon-button:disabled {
+    background-color: #cccccc; /* Gray for Disabled State */
     cursor: not-allowed;
   }
 </style>

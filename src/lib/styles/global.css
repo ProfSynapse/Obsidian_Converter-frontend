@@ -5,11 +5,11 @@
 
 :root {
   /* Brand Colors */
-  --color-prime: #00a99d;
-  --color-second: #93278f;
+  --color-prime: #00a99d; /* Teal */
+  --color-second: #93278f; /* Purple */
   --color-third: #fbf7f1;
-  --color-error: #ff3860;
-  --color-error-dark: #e60000; /* Darkened error color for hover */
+  --color-error: #ff3860; /* Bright Red */
+  --color-error-dark: #e60000; /* Dark Red */
 
   /* Text and Background Colors */
   --color-text: #333333;
@@ -17,7 +17,7 @@
 
   /* Gradients */
   --gradient-primary: linear-gradient(135deg, var(--color-prime), var(--color-second));
-  --gradient-button: linear-gradient(45deg, var(--color-prime), var(--color-second));
+  --gradient-button: linear-gradient(135deg, var(--color-prime), var(--color-second));
 
   /* Other Styling Variables */
   --rounded-corners: 12px;
@@ -27,11 +27,12 @@
 
 body {
   font-family: 'Montserrat', sans-serif;
-  background-color: var(--color-third);
-  color: var(--color-text);
-  line-height: 1.6;
+  background: linear-gradient(135deg, var(--color-prime), var(--color-second));
+  background-size: cover;
   margin: 0;
   padding: 0;
+  color: var(--color-text);
+  line-height: 1.6;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -53,20 +54,43 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* General Button Styles */
 .btn {
+  position: relative; /* For pseudo-element positioning */
+  overflow: hidden; /* To clip the pseudo-element */
   font-family: 'Montserrat', sans-serif;
-  background: var(--gradient-button);
+  background-color: var(--color-prime); /* Teal by default */
   color: var(--color-background);
   border: none;
   padding: 10px 20px;
   border-radius: var(--rounded-corners);
   cursor: pointer;
-  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+  transition: color var(--transition-speed), box-shadow var(--transition-speed), transform var(--transition-speed);
   font-weight: 600;
 }
 
+/* Pseudo-element for Gradient Overlay */
+.btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--gradient-button);
+  opacity: 0;
+  transition: opacity var(--transition-speed);
+  border-radius: var(--rounded-corners);
+  z-index: -1; /* Place it behind the button content */
+}
+
+/* Hover State */
+.btn:hover::before {
+  opacity: 1; /* Fade in the gradient */
+}
+
 .btn:hover {
-  transform: translateY(-2px);
+  color: white; /* Ensure text remains visible over gradient */
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
@@ -75,25 +99,42 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.btn:disabled {
+  background-color: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Pill-Shaped Button Modifier */
+.btn-pill {
+  border-radius: 9999px; /* Makes the button pill-shaped */
+}
+
+/* Input Styles */
 .input {
-  font-family: 'Montserrat', sans-serif;
+  width: 100%;
+  padding: 10px;
   border: 2px solid var(--color-prime);
   border-radius: var(--rounded-corners);
-  padding: 10px;
-  transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
-  width: 100%;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color var(--transition-speed);
+  box-sizing: border-box;
 }
 
 .input:focus {
   border-color: var(--color-second);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(147, 39, 143, 0.2);
 }
 
 .error {
   color: var(--color-error);
   font-size: 0.9em;
   margin-top: 5px;
+}
+
+.animate-pulse {
+  animation: pulse 2s infinite;
 }
 
 @keyframes pulse {
@@ -106,10 +147,6 @@ h1, h2, h3, h4, h5, h6 {
   100% {
     transform: scale(1);
   }
-}
-
-.animate-pulse {
-  animation: pulse 2s infinite;
 }
 
 .file-list {
