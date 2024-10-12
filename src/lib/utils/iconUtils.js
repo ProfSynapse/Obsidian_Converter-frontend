@@ -1,13 +1,17 @@
-// src/lib/utils/iconUtils.js
-
-const iconMap = {
-  document: '📄',
-  video: '🎥',
-  audio: '🎵',
-  image: '🖼️',
-  url: '🔗',
-};
-
+/* src/lib/utils/iconUtils.js */
 export function getFileIcon(type) {
-  return iconMap[type] || '📁';
+  switch (type) {
+    case 'image':
+      return '🖼️';
+    case 'video':
+      return '🎥';
+    case 'audio':
+      return '🎵';
+    case 'document':
+      return '📄';
+    case 'url':
+      return '🔗';
+    default:
+      return '📁';
+  }
 }
