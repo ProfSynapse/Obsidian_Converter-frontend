@@ -1,121 +1,254 @@
-// src/lib/utils/fileHandler.js
+// fileHandler.js - Comprehensive file handling module
+// Handles file type detection, validation, and management
 
 import { files } from '$lib/stores/files.js';
+import { Document, VideoCamera, MusicalNote, Photo, Link } from 'svelte-hero-icons';
 
 /**
- * Generates a unique ID for files
- * @returns {string} - A unique identifier
+ * Constants for file handling
+ */
+const VALID_EXTENSIONS = [
+    'txt', 'rtf', 'pdf', 'docx', 'odt', 'epub',
+    'csv', 'json', 'yaml', 'yml', 'xlsx', 'pptx',
+    'html', 'htm', 'xml', 'mp3', 'wav', 'ogg',
+    'mp4', 'mov', 'avi', 'webm'
+];
+
+const MIME_TYPE_MAPPING = {
+    // Document formats
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/msword': 'doc',
+    'application/pdf': 'pdf',
+    'application/rtf': 'rtf',
+    'text/plain': 'txt',
+    'application/vnd.oasis.opendocument.text': 'odt',
+    'application/epub+zip': 'epub',
+    
+    // Spreadsheet and presentation formats
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    
+    // Web formats
+    'text/html': 'html',
+    'text/xml': 'xml',
+    'application/json': 'json',
+    'text/csv': 'csv',
+    'text/yaml': 'yaml',
+    'text/yml': 'yml',
+    
+    // Audio formats
+    'audio/mpeg': 'mp3',
+    'audio/wav': 'wav',
+    'audio/ogg': 'ogg',
+    
+    // Video formats
+    'video/mp4': 'mp4',
+    'video/quicktime': 'mov',
+    'video/x-msvideo': 'avi',
+    'video/webm': 'webm'
+};
+
+/**
+ * Generates a unique ID for file tracking
+ * @returns {string} A unique identifier
  */
 export function generateUniqueId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
 /**
- * Determines the file type based on MIME type
- * @param {Object} file - The file object
- * @returns {string} - The type of the file
+ * Maps MIME types to file extensions
+ * @param {string} mimeType - The MIME type to convert
+ * @param {string} fileName - Original file name as fallback
+ * @returns {string} The correct file extension
+ * @throws {Error} If file type is not supported
+ */
+function getMimeTypeExtension(mimeType, fileName) {
+    console.log('Processing MIME type:', mimeType);
+    console.log('Original filename:', fileName);
+
+    // Try getting extension from MIME type mapping
+    const mimeExtension = MIME_TYPE_MAPPING[mimeType];
+    if (mimeExtension) {
+        console.log('Found MIME type mapping:', mimeExtension);
+        return mimeExtension;
+    }
+
+    // Fallback to file extension from name
+    const fileExtension = fileName.split('.').pop().toLowerCase();
+    console.log('Extracted extension from filename:', fileExtension);
+
+    // Validate the extension
+    if (VALID_EXTENSIONS.includes(fileExtension)) {
+        return fileExtension;
+    }
+
+    throw new Error(`Unsupported file type: ${fileExtension}`);
+}
+
+/**
+ * Determines the file type from a File object
+ * @param {File} file - The file object to analyze
+ * @returns {string} The normalized file extension
+ * @throws {Error} If file type cannot be determined or is not supported
  */
 export function getFileType(file) {
-  if (file.type.startsWith('image/')) return 'image';
-  if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('audio/')) return 'audio';
-  if (file.type === 'application/pdf') return 'pdf';
-  if (file.type === 'text/plain') return 'text';
-  if (file.type === 'text/html') return 'html';
-  if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
-  return 'document';
+    if (!file || !file.name) {
+        throw new Error('Invalid file object');
+    }
+
+    console.log('Determining file type for:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+    });
+
+    try {
+        const extension = getMimeTypeExtension(file.type, file.name);
+        console.log('Determined file extension:', extension);
+        return extension;
+    } catch (error) {
+        console.error('Error in getFileType:', error);
+        throw error;
+    }
 }
 
 /**
- * Adds a file to the store
+ * Validates file size
+ * @param {File} file - The file to validate
+ * @param {number} maxSize - Maximum allowed size in bytes
+ * @throws {Error} If file is too large
+ */
+function validateFileSize(file, maxSize = 50 * 1024 * 1024) { // 50MB default
+    if (file.size > maxSize) {
+        throw new Error(`File size exceeds maximum limit of ${maxSize / (1024 * 1024)}MB`);
+    }
+}
+
+/**
+ * Adds a file to the store with proper metadata
  * @param {File} file - The file object to add
- * @returns {Object} - The added file object
+ * @returns {Object} The created file object with metadata
  */
 export function addFile(file) {
-  const newFile = {
-    id: generateUniqueId(),
-    name: file.name,
-    type: getFileType(file),
-    size: file.size,
-    lastModified: file.lastModified,
-    status: 'pending',
-    file: file
-  };
+    try {
+        validateFileSize(file);
+        const fileType = getFileType(file);
+        
+        const newFile = {
+            id: generateUniqueId(),
+            file: file,
+            name: file.name,
+            type: fileType,
+            size: file.size,
+            lastModified: file.lastModified,
+            status: 'pending'
+        };
 
-  files.addFile(newFile);
-  return newFile;
+        console.log('Adding file to store:', {
+            id: newFile.id,
+            name: newFile.name,
+            type: newFile.type,
+            size: newFile.size
+        });
+
+        files.addFile(newFile);
+        return newFile;
+    } catch (error) {
+        console.error('Error adding file:', error);
+        throw error;
+    }
 }
 
 /**
- * Removes a file from the store by ID
- * @param {string} id - The unique identifier of the file
+ * Removes a file from the store
+ * @param {string} id - The file ID to remove
  */
 export function removeFile(id) {
-  files.removeFile(id);
+    console.log('Removing file:', id);
+    files.removeFile(id);
 }
 
 /**
- * Updates the status of a file in the store
- * @param {string} id - The unique identifier of the file
- * @param {string} status - The new status of the file
+ * Updates a file's status in the store
+ * @param {string} id - The file ID to update
+ * @param {string} status - The new status
  */
 export function updateFileStatus(id, status) {
-  files.updateFile(id, { status });
+    console.log('Updating file status:', { id, status });
+    files.updateFile(id, { status });
 }
 
 /**
  * Clears all files from the store
  */
 export function clearFiles() {
-  files.clearFiles();
+    console.log('Clearing all files');
+    files.clearFiles();
+}
+
+/**
+ * Maps file types to their corresponding icons
+ */
+const TYPE_TO_ICON = {
+    'txt': Document,
+    'rtf': Document,
+    'pdf': Document,
+    'docx': Document,
+    'odt': Document,
+    'epub': Document,
+    'csv': Document,
+    'json': Document,
+    'yaml': Document,
+    'yml': Document,
+    'xlsx': Document,
+    'pptx': Document,
+    'html': Document,
+    'htm': Document,
+    'xml': Document,
+    'mp3': MusicalNote,
+    'wav': MusicalNote,
+    'ogg': MusicalNote,
+    'mp4': VideoCamera,
+    'mov': VideoCamera,
+    'avi': VideoCamera,
+    'webm': VideoCamera,
+    'url': Link
+};
+
+/**
+ * Gets the icon component for a file type
+ * @param {string} type - The file type
+ * @returns {Component} The icon component
+ */
+export function getFileIconComponent(type) {
+    return TYPE_TO_ICON[type] || Document;
 }
 
 /**
  * Reads a file as text
  * @param {File} file - The file to read
- * @returns {Promise<string>} - The file content as text
+ * @returns {Promise<string>} The file content
  */
-export async function readFileAsText(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = event => resolve(event.target.result);
-    reader.onerror = error => reject(error);
-    reader.readAsText(file);
-  });
+export function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = event => resolve(event.target.result);
+        reader.onerror = error => reject(error);
+        reader.readAsText(file);
+    });
 }
 
 /**
- * Reads a file as Data URL
+ * Reads a file as data URL
  * @param {File} file - The file to read
- * @returns {Promise<string>} - The file content as Data URL
+ * @returns {Promise<string>} The file content as data URL
  */
-export async function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = event => resolve(event.target.result);
-    reader.onerror = error => reject(error);
-    reader.readAsDataURL(file);
-  });
-}
-
-import { Document, VideoCamera, MusicalNote, Photo, Link } from 'svelte-hero-icons';
-
-/**
- * Maps file types to their respective icon components
- */
-const iconMap = {
-  document: Document,
-  video: VideoCamera,
-  audio: MusicalNote,
-  image: Photo,
-  url: Link,
-};
-
-/**
- * Retrieves the appropriate icon component based on file type
- * @param {string} type - The type of the file
- * @returns {SvelteComponent} - The icon component
- */
-export function getFileIconComponent(type) {
-  return iconMap[type] || Document;
+export function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = event => resolve(event.target.result);
+        reader.onerror = error => reject(error);
+        reader.readAsDataURL(file);
+    });
 }

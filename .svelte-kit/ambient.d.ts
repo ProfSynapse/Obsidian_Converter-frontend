@@ -26,7 +26,8 @@
  * ```
  */
 declare module '$env/static/private' {
-	export const VITE_API_URL: string;
+	export const OPENROUTER_API_KEY: string;
+	export const VITE_API_BASE_URL: string;
 	export const ACSetupSvcPort: string;
 	export const ACSvcPort: string;
 	export const ALLUSERSPROFILE: string;
@@ -145,7 +146,8 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
-		VITE_API_URL: string;
+		OPENROUTER_API_KEY: string;
+		VITE_API_BASE_URL: string;
 		ACSetupSvcPort: string;
 		ACSvcPort: string;
 		ALLUSERSPROFILE: string;

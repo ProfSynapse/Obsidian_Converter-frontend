@@ -2,21 +2,6 @@
 <script>
   import { files } from '$lib/stores/files.js';
   import { getFileIcon } from '$lib/utils/iconUtils.js';
-
-  // Function to handle file download
-  export let onDownloadFile;
-
-  // Function to get status color (you may have this function already)
-  function getStatusColor(status) {
-    switch (status) {
-      case 'completed':
-        return 'green';
-      case 'error':
-        return 'red';
-      default:
-        return 'black';
-    }
-  }
 </script>
 
 <div class="result-display">
@@ -32,14 +17,8 @@
               {file.status}
             </span>
           </div>
-          <!-- Download Button -->
-          {#if file.status === 'completed'}
-            <button
-              class="download-button"
-              on:click={() => onDownloadFile({ detail: { fileId: file.id } })}
-            >
-              Download
-            </button>
+          {#if file.status === 'error'}
+            <span class="error-text">Failed to convert</span>
           {/if}
         </li>
       {/each}
@@ -92,17 +71,9 @@
     font-style: italic;
   }
 
-  .download-button {
-    background-color: var(--color-prime);
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: var(--rounded-corners);
-    cursor: pointer;
-    transition: background-color var(--transition-speed);
-  }
-
-  .download-button:hover {
-    background-color: var(--color-second);
+  .error-text {
+    color: var(--color-error);
+    margin-left: 10px;
+    font-size: 0.9rem;
   }
 </style>

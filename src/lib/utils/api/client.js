@@ -1,100 +1,172 @@
 // src/lib/utils/api/client.js
-
 import { ENDPOINTS } from './endpoints.js';
 import { conversionStatus } from '$lib/stores/conversionStatus.js';
+import JSZip from 'jszip';
+import FileSaver from 'file-saver';
 
-async function handleResponse(response) {
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+/**
+ * Custom error class for handling conversion-specific errors
+ */
+export class ConversionError extends Error {
+  constructor(message, code = 'CONVERSION_ERROR', details = null) {
+    super(message);
+    this.name = 'ConversionError';
+    this.code = code;
+    this.details = details;
   }
-  return response;
 }
 
-export async function convertFiles(files, apiKey) {
-  conversionStatus.startConversion();
+/**
+ * Converts single file and returns content with images
+ * @param {Object} fileObj - File object to convert
+ * @param {string} apiKey - API key for authentication
+ * @returns {Promise<Object>} Converted file data with content and images
+ */
+async function convertSingleFile(fileObj, apiKey) {
+  const formData = new FormData();
+  formData.append('file', fileObj.file);
+  formData.append('fileType', fileObj.file.name.split('.').pop().toLowerCase());
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    conversionStatus.setCurrentFile(file.name);
-    conversionStatus.setProgress(Math.round((i / files.length) * 100));
+  console.log(`Converting file: ${fileObj.file.name}`);
+  
+  const response = await fetch(ENDPOINTS.CONVERT, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey
+    },
+    body: formData
+  });
 
-    const formData = new FormData();
-    formData.append('file', file);
+  if (!response.ok) {
+    throw new ConversionError(
+      `Failed to convert ${fileObj.file.name}`,
+      'CONVERSION_ERROR',
+      await response.text()
+    );
+  }
 
-    try {
-      const response = await fetch(ENDPOINTS.CONVERT, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': apiKey,
-        },
-        body: formData,
-      });
+  const result = await response.json();
+  if (!result.success) {
+    throw new ConversionError(
+      result.error?.message || `Failed to convert ${fileObj.file.name}`
+    );
+  }
 
-      await handleResponse(response);
+  return {
+    name: fileObj.file.name.replace(/\.[^/.]+$/, '.md'),
+    content: result.content,
+    images: result.images || []
+  };
+}
+
+/**
+ * Creates ZIP file from converted content
+ * @param {Array} convertedFiles - Array of converted file objects
+ * @returns {Promise<JSZip>} JSZip instance with all files
+ */
+/**
+ * Creates ZIP file from converted content
+ * @param {Array} convertedFiles - Array of converted file objects
+ * @returns {Promise<JSZip>} JSZip instance with all files
+ */
+async function createZipFile(convertedFiles) {
+  const zip = new JSZip();
+  
+  for (const file of convertedFiles) {
+    // Add markdown file
+    zip.file(file.name, file.content);
+
+    // Add images if present
+    if (file.images && file.images.length > 0) {
+      const baseName = file.name.replace('.md', '');
+      const imagesFolder = zip.folder(`attachments/${baseName}`);
       
-      // Process the result as needed
-      // const result = await response.json();
-      // You might want to update a store with the converted content here
-    } catch (error) {
-      conversionStatus.setError(error.message);
-      throw error;
+      for (const image of file.images) {
+        try {
+          // Directly add base64 data to the ZIP without manual decoding
+          imagesFolder.file(image.name, image.data, { base64: true });
+        } catch (error) {
+          console.error(`Error processing image ${image.name}:`, error);
+          // Continue with other images if one fails
+        }
+      }
     }
   }
 
-  conversionStatus.completeConversion();
+  return zip;
 }
 
-export async function downloadZip(fileIds, apiKey) {
+/**
+ * Main conversion function
+ * @param {Array} filesToConvert - Array of files to convert
+ * @param {string} apiKey - API key for authentication
+ * @param {Function} onProgress - Progress callback function
+ */
+export async function convertFiles(filesToConvert, apiKey, onProgress) {
+  if (!filesToConvert.length) {
+    throw new ConversionError('No files to convert', 'NO_FILES');
+  }
+
   try {
-    const response = await fetch(ENDPOINTS.CREATE_ZIP, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
-      body: JSON.stringify({ fileIds })
+    console.log(`Starting conversion of ${filesToConvert.length} files`);
+    conversionStatus.setStatus('converting');
+    conversionStatus.setProgress(0);
+
+    const convertedFiles = [];
+    const totalFiles = filesToConvert.length;
+
+    // Convert each file one at a time
+    for (let i = 0; i < filesToConvert.length; i++) {
+      const fileObj = filesToConvert[i];
+      
+      conversionStatus.setCurrentFile(fileObj.file.name);
+      const progress = Math.round((i / totalFiles) * 50); // First 50% for conversion
+      conversionStatus.setProgress(progress);
+      onProgress?.(progress);
+
+      const convertedFile = await convertSingleFile(fileObj, apiKey);
+      convertedFiles.push(convertedFile);
+    }
+
+    // Update status for ZIP creation
+    conversionStatus.setStatus('creating_zip');
+    conversionStatus.setProgress(75);
+    onProgress?.(75);
+
+    console.log('Creating ZIP file...');
+    const zip = await createZipFile(convertedFiles);
+
+    // Generate ZIP blob
+    conversionStatus.setStatus('generating_download');
+    conversionStatus.setProgress(90);
+    onProgress?.(90);
+
+    const blob = await zip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 9 }
     });
 
-    await handleResponse(response);
+    // Download
+    console.log('Starting download...');
+    FileSaver.saveAs(blob, 'obsidian-vault.zip');
 
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = 'obsidian-notes.zip';
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
+    conversionStatus.setStatus('completed');
+    conversionStatus.setProgress(100);
+    onProgress?.(100);
+
+    console.log('Conversion and download completed');
+
   } catch (error) {
-    console.error('Error downloading zip file:', error);
+    console.error('Error during conversion:', error);
+    conversionStatus.setStatus('error');
+    conversionStatus.setError(error.message);
     throw error;
   }
 }
 
-export async function downloadSingleFile(fileId, apiKey) {
-  try {
-    const response = await fetch(ENDPOINTS.DOWNLOAD_FILE(fileId), {
-      headers: {
-        'X-API-Key': apiKey
-      }
-    });
-
-    await handleResponse(response);
-
-    const blob = await response.blob();
-    const filename = response.headers.get('Content-Disposition')?.split('filename=')[1] || 'obsidian-note.md';
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error('Error downloading file:', error);
-    throw error;
-  }
-}
+// Export all required functions and classes
+export {
+  convertSingleFile,
+  createZipFile
+};

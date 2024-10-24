@@ -3,19 +3,20 @@
   import ApiKeyInput from '$lib/components/ApiKeyInput.svelte';
   import FileUploader from '$lib/components/FileUploader/FileUploader.svelte';
   import ConversionStatus from '$lib/components/ConversionStatus.svelte';
-  import ResultDisplay from '$lib/components/ResultDisplay.svelte';
   import Button from '@smui/button';
   import { apiKey } from '$lib/stores/apiKey';
   import { files } from '$lib/stores/files';
   import { conversionStatus } from '$lib/stores/conversionStatus';
-  import { convertFiles, downloadZip, downloadSingleFile } from '$lib/utils/api/client.js';
+  import { convertFiles, ConversionError } from '$lib/utils/api/client.js';
 
   let isConverting = false;
-  let isDownloading = false;
 
   // Reactive statement to get the current conversion status
   $: status = $conversionStatus.status;
 
+  /**
+   * Handles conversion of selected files and creation of ZIP
+   */
   async function handleStartConversion() {
     if (!$apiKey) {
       alert('Please enter your API key first.');
@@ -27,147 +28,245 @@
       return;
     }
 
+    console.log('Starting conversion of files:', $files);
+
     isConverting = true;
-    conversionStatus.setStatus('converting'); // Set status to 'converting'
-    conversionStatus.setProgress(0); // Initialize progress
-    console.log('Starting file conversion'); // Log conversion start
+    conversionStatus.setStatus('converting'); 
+    conversionStatus.setProgress(0);
 
     try {
       await convertFiles($files, $apiKey, (progress) => {
         conversionStatus.setProgress(progress);
       });
-      console.log('File conversion completed'); // Log successful conversion
-      conversionStatus.setStatus('completed'); // Set status to 'completed'
+
+      console.log('Conversion and ZIP creation completed');
+      
     } catch (error) {
-      console.error('Conversion failed:', error); // Log conversion error
-      conversionStatus.setError(error.message || String(error));
+      console.error('Conversion failed:', error);
+      conversionStatus.setError(
+        error instanceof ConversionError 
+          ? error.message 
+          : 'Failed to convert files'
+      );
+      
+      alert(error instanceof ConversionError 
+        ? error.message 
+        : 'An unexpected error occurred during conversion');
+        
     } finally {
       isConverting = false;
     }
   }
 
+  /**
+   * Handles files being added via the FileUploader
+   * @param {CustomEvent} event - The filesAdded event
+   */
   function handleFilesAdded(event) {
-    console.log('Files added event:', event); // Log files added event
-    // Additional handling if needed
+    const addedFiles = event.detail.files.map(fileObj => ({
+      id: crypto.randomUUID(), // Generate unique ID
+      name: fileObj.file.name,
+      type: fileObj.file.name.split('.').pop().toLowerCase(),
+      status: 'pending',
+      file: fileObj.file
+    }));
+
+    // Reset status when new files are added
+    conversionStatus.reset();
+    
+    // Add files to store
+    files.addFiles(addedFiles);
+    
+    console.log('Files added:', addedFiles);
   }
 
-  async function handleDownloadAll() {
-    if ($files.length === 0) {
-      alert('No files to download.');
-      return;
-    }
-
-    isDownloading = true;
-    console.log('Starting download of all files as zip'); // Log download action
-    try {
-      const fileIds = $files.map((file) => file.id);
-      await downloadZip(fileIds, $apiKey);
-      console.log('Download completed'); // Log successful download
-    } catch (error) {
-      console.error('Error downloading zip file:', error); // Log download error
-      alert('Failed to download files. Please try again.');
-    } finally {
-      isDownloading = false;
-    }
-  }
-
-  async function handleSingleFileDownload(event) {
-    const fileId = event.detail.fileId;
-    console.log(`Starting download for file ID: ${fileId}`); // Log download start
-    try {
-      await downloadSingleFile(fileId, $apiKey);
-      console.log(`Download completed for file ID: ${fileId}`); // Log successful download
-    } catch (error) {
-      console.error('Error downloading file:', error); // Log download error
-      alert('Failed to download file. Please try again.');
-    }
+  /**
+   * Clears all files and resets status
+   */
+  function handleClearFiles() {
+    files.clearFiles();
+    conversionStatus.reset();
   }
 </script>
 
-<!-- Main Content -->
-<ApiKeyInput />
-<FileUploader on:filesAdded={handleFilesAdded} />
+<div class="container">
+  <header class="header">
+    <h1>Obsidian Note Converter</h1>
+    <p>Convert your files to Obsidian-compatible Markdown</p>
+  </header>
 
-{#if status === 'converting'}
-  <ConversionStatus />
-{/if}
+  <main class="main-content">
+    <!-- API Key Input -->
+    <section class="section">
+      <ApiKeyInput />
+    </section>
 
-{#if $conversionStatus.status === 'completed'}
-  <ResultDisplay on:downloadFile={handleSingleFileDownload} />
-  <!-- Download Actions -->
-  <div class="download-actions">
-    <Button
-      on:click={handleDownloadAll}
-      disabled={isDownloading || $files.length === 0}
-      variant="raised"
-    >
-      {isDownloading ? 'Downloading...' : 'Download All as Zip'}
-    </Button>
-  </div>
-{/if}
+    <!-- File Upload -->
+    <section class="section">
+      <FileUploader 
+        on:filesAdded={handleFilesAdded}
+      />
+    </section>
 
-<!-- Conversion Actions -->
-{#if $files.length > 0}
-  <div class="conversion-actions">
-    <button
-      class="convert-button"
-      on:click={handleStartConversion}
-      disabled={isConverting || !$apiKey}
-    >
-      {isConverting ? 'Converting...' : 'Start Conversion'}
-    </button>
-  </div>
-{/if}
+    <!-- Conversion Status -->
+    {#if status !== 'idle'}
+      <section class="section">
+        <ConversionStatus />
+      </section>
+    {/if}
+
+    <!-- Action Buttons -->
+    {#if $files.length > 0}
+      <section class="actions">
+        <div class="button-group">
+          <button
+            class="convert-button"
+            on:click={handleStartConversion}
+            disabled={isConverting || !$apiKey}
+          >
+            {#if isConverting}
+              Converting Files...
+            {:else}
+              Convert & Download ZIP
+            {/if}
+          </button>
+
+          <button
+            class="clear-button"
+            on:click={handleClearFiles}
+            disabled={isConverting}
+          >
+            Clear Files
+          </button>
+        </div>
+
+        {#if status === 'error'}
+          <p class="error-message">
+            Conversion failed. Please try again or check the console for details.
+          </p>
+        {/if}
+      </section>
+    {/if}
+  </main>
+
+  <footer class="footer">
+    <p>
+      Files will be converted to Markdown and downloaded as a ZIP file ready for 
+      importing into Obsidian.
+    </p>
+  </footer>
+</div>
 
 <style>
-  .conversion-actions {
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  h1 {
+    color: var(--color-prime);
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .section {
+    margin-bottom: 2rem;
+  }
+
+  .actions {
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .button-group {
+    display: flex;
+    gap: 1rem;
     justify-content: center;
-    margin-top: 30px;
   }
 
   .convert-button {
-    font-size: 1.5rem;
-    padding: 20px 40px;
-    background: var(--gradient-button); /* Gradient background */
+    font-size: 1.2rem;
+    padding: 1rem 2rem;
+    background: var(--gradient-button);
     color: white;
     border: none;
     border-radius: var(--rounded-corners);
     cursor: pointer;
-    transition: background-color var(--transition-speed), box-shadow var(--transition-speed);
+    transition: all var(--transition-speed);
     font-weight: 600;
+    min-width: 200px;
   }
 
-  .convert-button:hover {
-    background-color: var(--color-second);
-    box-shadow: 0 0 10px var(--color-second);
+  .convert-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   }
 
   .convert-button:disabled {
-    background-color: #cccccc;
-    color: #666666;
+    background: #cccccc;
     cursor: not-allowed;
+    transform: none;
     box-shadow: none;
   }
 
-  .download-actions {
-    display: flex;
-    justify-content: center;
-    margin-top: 30px;
+  .clear-button {
+    padding: 1rem 2rem;
+    background: transparent;
+    color: var(--color-prime);
+    border: 2px solid var(--color-prime);
+    border-radius: var(--rounded-corners);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    font-weight: 500;
   }
 
-  /* Adjusted global styles for buttons */
-  :global(.mdc-button) {
-    background-color: var(--color-prime);
+  .clear-button:hover:not(:disabled) {
+    background: var(--color-prime);
     color: white;
   }
 
-  :global(.mdc-button:hover) {
-    background-color: var(--color-second);
+  .clear-button:disabled {
+    border-color: #cccccc;
+    color: #cccccc;
+    cursor: not-allowed;
   }
 
-  :global(.mdc-button:disabled) {
-    background-color: #cccccc;
-    color: #666666;
+  .error-message {
+    color: var(--color-error);
+    text-align: center;
+    margin-top: 1rem;
+  }
+
+  .footer {
+    margin-top: 3rem;
+    text-align: center;
+    color: var(--color-text);
+    opacity: 0.8;
+    font-size: 0.9rem;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 600px) {
+    .container {
+      padding: 1rem;
+    }
+
+    .button-group {
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .convert-button,
+    .clear-button {
+      width: 100%;
+    }
   }
 </style>
