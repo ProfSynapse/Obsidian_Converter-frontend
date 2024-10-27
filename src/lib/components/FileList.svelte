@@ -1,51 +1,43 @@
-<!-- src/lib/components/FileList.svelte -->
 <script>
   import { files } from '$lib/stores/files.js';
   import { getFileIcon } from '$lib/utils/iconUtils.js';
   import { onDestroy } from 'svelte';
+  import { fade, slide } from 'svelte/transition';
+  import { flip } from 'svelte/animate';
 
   export let title = 'Files';
-  export let onAction; // Function to handle actions on files
-  export let filterFunction = () => true; // Function to filter files
-  export let getStatusColor = () => 'var(--color-text)'; // Function to get status color
-  export let isDisabled = () => false; // Function to determine if action is disabled
 
   let filteredFiles = [];
   let selectedFiles = [];
   let selectAll = false;
+  let isDragging = false;
+  let draggedId = null;
 
+  // Subscribe to files store
   const unsubscribe = files.subscribe(value => {
-    filteredFiles = value.filter(filterFunction);
-    // Adjust selectedFiles based on filteredFiles
-    selectedFiles = selectedFiles.filter(id => filteredFiles.some(file => file.id === id));
-    // If all filtered files are selected, set selectAll to true
-    selectAll = filteredFiles.length > 0 && selectedFiles.length === filteredFiles.length;
+    filteredFiles = value;
+    selectedFiles = selectedFiles.filter(id => 
+      filteredFiles.some(file => file.id === id)
+    );
+    selectAll = filteredFiles.length > 0 && 
+      selectedFiles.length === filteredFiles.length;
   });
 
   onDestroy(() => {
     unsubscribe();
   });
 
-  // Function to handle checkbox change for a file
   function toggleFileSelection(fileId) {
-    if (selectedFiles.includes(fileId)) {
-      selectedFiles = selectedFiles.filter(id => id !== fileId);
-    } else {
-      selectedFiles = [...selectedFiles, fileId];
-    }
+    selectedFiles = selectedFiles.includes(fileId)
+      ? selectedFiles.filter(id => id !== fileId)
+      : [...selectedFiles, fileId];
   }
 
-  // Function to handle Select All checkbox
   function handleSelectAll() {
-    if (selectAll) {
-      selectedFiles = [];
-    } else {
-      selectedFiles = filteredFiles.map(file => file.id);
-    }
+    selectedFiles = selectAll ? [] : filteredFiles.map(file => file.id);
     selectAll = !selectAll;
   }
 
-  // Function to handle Remove Selected button
   function removeSelectedFiles() {
     selectedFiles.forEach(id => {
       files.removeFile(id);
@@ -54,31 +46,62 @@
     selectAll = false;
   }
 
-  // Function to return SVG markup or icon
-  function getIconMarkup(type) {
-    return getFileIcon(type);
+  function getFileTypeColor(type) {
+    const types = {
+      document: '#4A90E2',
+      image: '#7ED321',
+      video: '#F5A623',
+      audio: '#BD10E0',
+      url: '#50E3C2',
+      parentUrl: '#9013FE',
+      default: '#B8B8B8'
+    };
+    return types[type] || types.default;
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
   }
 </script>
 
-<div class="file-list-container">
-  <!-- Sticky Header -->
-  <div class="file-list-header">
-    <h3>{title}</h3>
+<div class="file-list-container card animate-fade-in">
+  <div class="section-header">
+    <h3 class="section-title">
+      <span class="icon">📑</span>
+      {title}
+      {#if filteredFiles.length > 0}
+        <span class="file-count badge">
+          {filteredFiles.length} {filteredFiles.length === 1 ? 'file' : 'files'}
+        </span>
+      {/if}
+    </h3>
+
     {#if filteredFiles.length > 0}
-      <div class="file-list-actions">
-        <div class="select-all">
+      <div class="actions-group" transition:fade>
+        <label class="checkbox-wrapper">
           <input
             type="checkbox"
             checked={selectAll}
             on:change={handleSelectAll}
             id="select-all-checkbox"
-            aria-label="Select All Files"
+            class="checkbox-input"
           />
-          <label for="select-all-checkbox">Select All</label>
-        </div>
+          <span class="checkbox-custom"></span>
+          <span class="checkbox-label">Select All</span>
+        </label>
+        
         {#if selectedFiles.length > 0}
-          <button class="btn btn-pill remove-selected-button" on:click={removeSelectedFiles} aria-label="Remove Selected Files">
-            Remove Selected ({selectedFiles.length})
+          <button 
+            class="btn btn-danger btn-sm"
+            on:click={removeSelectedFiles}
+            transition:fade
+          >
+            <span class="icon">🗑️</span>
+            Remove ({selectedFiles.length})
           </button>
         {/if}
       </div>
@@ -86,188 +109,307 @@
   </div>
 
   {#if filteredFiles.length > 0}
-    <ul class="file-list">
-      {#each filteredFiles as file}
-        <li class="file-item">
-          <div class="file-info">
-            <input
-              type="checkbox"
-              checked={selectedFiles.includes(file.id)}
-              on:change={() => toggleFileSelection(file.id)}
-              aria-label={`Select file ${file.name}`}
-            />
-            <!-- File Icon -->
-            <span class="file-icon" aria-hidden="true">
-              {@html getIconMarkup(file.type)}
-            </span>
-            <!-- File name -->
-            <span class="file-name">{file.name}</span>
+    <ul class="file-list" role="list">
+      {#each filteredFiles as file (file.id)}
+        <li 
+          class="file-card"
+          animate:flip={{ duration: 300 }}
+          transition:slide|local={{ duration: 300 }}
+        >
+          <div class="file-card-content">
+            <label class="checkbox-wrapper file-select">
+              <input
+                type="checkbox"
+                checked={selectedFiles.includes(file.id)}
+                on:change={() => toggleFileSelection(file.id)}
+                class="checkbox-input"
+              />
+              <span class="checkbox-custom"></span>
+            </label>
+
+            <div class="file-icon-wrapper" style="--file-color: {getFileTypeColor(file.type)}">
+              <span class="file-icon" aria-hidden="true">
+                {getFileIcon(file.type)}
+              </span>
+            </div>
+
+            <div class="file-details">
+              <span class="file-name">{file.name}</span>
+              <div class="file-meta">
+                {#if file.size}
+                  <span class="file-size">{formatFileSize(file.size)}</span>
+                {/if}
+                <span class="file-type">{file.type}</span>
+                {#if file.status}
+                  <span class="file-status" class:is-pending={file.status === 'pending'}>
+                    {file.status}
+                  </span>
+                {/if}
+              </div>
+            </div>
+
+            <button
+              class="remove-button"
+              on:click={() => files.removeFile(file.id)}
+              aria-label="Remove file"
+            >
+              <span class="icon">✖️</span>
+            </button>
           </div>
         </li>
       {/each}
     </ul>
   {:else}
-    <p class="no-files-message">No files to display.</p>
+    <div class="empty-state" transition:fade>
+      <div class="empty-state-content">
+        <span class="empty-icon">📂</span>
+        <h4 class="empty-title">No files yet</h4>
+        <p class="empty-description">
+          Drop files or use the uploader above to add files for conversion
+        </p>
+      </div>
+    </div>
   {/if}
 </div>
 
 <style>
   .file-list-container {
-    border: 2px solid var(--color-prime);
-    padding: 0 20px 20px 20px; /* Removed top padding */
-    border-radius: var(--rounded-corners);
-    background-color: rgba(255, 255, 255, 0.9);
-    box-shadow: var(--box-shadow);
-    max-height: 400px; /* Adjust based on item height */
-    overflow-y: auto; /* Enable vertical scrolling */
-    position: relative;
+    --file-card-height: 72px;
   }
 
-  /* Sticky Header */
-  .file-list-header {
-    position: sticky;
-    top: 0;
-    background-color: rgba(255, 255, 255, 0.95); /* Slight transparency to blend with content */
-    z-index: 100; /* Higher z-index to ensure it stays above the list items */
-    padding: 10px 0; /* Uniform vertical padding */
-    border-bottom: 1px solid var(--color-third);
-  }
-
-  .file-list-header h3 {
-    margin: 0;
-    color: var(--color-prime);
-    font-size: 1.5rem;
-    text-align: center;
-    margin-bottom: 10px;
-  }
-
-  .file-list-actions {
+  .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 10px;
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--color-background-secondary);
+    margin-bottom: var(--spacing-lg);
   }
 
-  .select-all {
+  .section-title {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--spacing-xs);
+    margin: 0;
   }
 
-  .select-all input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
+  .file-count {
+    margin-left: var(--spacing-xs);
   }
 
-  .select-all label {
-    cursor: pointer;
-    user-select: none;
+  .actions-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
   }
 
-  /* "Remove Selected" Button - Pill-Shaped */
-  .remove-selected-button {
-    position: relative; /* For pseudo-element */
-    overflow: hidden; /* To contain the pseudo-element */
-    background-color: var(--color-prime); /* Teal by default */
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 9999px; /* Pill shape */
-    cursor: pointer;
-    transition: color var(--transition-speed), box-shadow var(--transition-speed), transform var(--transition-speed);
-    font-weight: 600;
-  }
-
-  .remove-selected-button::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--gradient-button);
-    opacity: 0;
-    transition: opacity var(--transition-speed);
-    border-radius: 9999px;
-    z-index: -1; /* Place behind the button text */
-  }
-
-  .remove-selected-button:hover::before {
-    opacity: 1; /* Fade in the gradient */
-  }
-
-  .remove-selected-button:hover {
-    color: white; /* Ensure text remains visible over gradient */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .remove-selected-button:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
+  /* File List Styling */
   .file-list {
-    list-style: none;
-    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
     margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  .file-item {
+  .file-card {
+    background: var(--color-surface);
+    border-radius: var(--rounded-lg);
+    height: var(--file-card-height);
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    border: 1px solid var(--color-background-secondary);
+  }
+
+  .file-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-prime);
+  }
+
+  .file-card-content {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-third);
+    gap: var(--spacing-md);
+    height: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
   }
 
-  .file-info {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-  }
-
-  .file-icon {
-    width: 1.5rem;
-    height: 1.5rem;
+  /* File Icon Styling */
+  .file-icon-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--rounded-lg);
+    background: color-mix(in srgb, var(--file-color) 10%, transparent);
+    color: var(--file-color);
   }
 
-  .file-icon svg {
-    width: 100%;
-    height: 100%;
+  .file-icon {
+    font-size: var(--font-size-xl);
+  }
+
+  /* File Details Styling */
+  .file-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xs);
+    min-width: 0;
   }
 
   .file-name {
-    font-weight: 500;
-    flex: 1;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .no-files-message {
-    text-align: center;
-    color: var(--color-text);
-    font-style: italic;
-    padding: 1rem 0;
+  .file-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
   }
 
-  /* Scrollbar Styling (Optional) */
-  .file-list-container::-webkit-scrollbar {
-    width: 8px;
+  .file-size,
+  .file-type {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
   }
 
-  .file-list-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: var(--rounded-corners);
+  .file-status {
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    border-radius: var(--rounded-full);
+    font-size: var(--font-size-xs);
+    background: var(--color-background-secondary);
   }
 
-  .file-list-container::-webkit-scrollbar-thumb {
+  .file-status.is-pending {
+    background: var(--color-warning-light);
+    color: var(--color-warning);
+  }
+
+  /* Checkbox Styling */
+  .checkbox-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+  }
+
+  .checkbox-input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .checkbox-custom {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-prime);
+    border-radius: var(--rounded-sm);
+    background: var(--color-background-primary);
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+  }
+
+  .checkbox-input:checked + .checkbox-custom {
     background: var(--color-prime);
-    border-radius: var(--rounded-corners);
+    border-color: var(--color-prime);
   }
 
-  .file-list-container::-webkit-scrollbar-thumb:hover {
-    background: var(--color-second);
+  .checkbox-input:checked + .checkbox-custom::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+  }
+
+  /* Remove Button Styling */
+  .remove-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: none;
+    border-radius: var(--rounded-full);
+    cursor: pointer;
+    opacity: 0;
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    color: var(--color-text-secondary);
+  }
+
+  .file-card:hover .remove-button {
+    opacity: 1;
+  }
+
+  .remove-button:hover {
+    background: var(--color-error-light);
+    color: var(--color-error);
+  }
+
+  /* Empty State Styling */
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    background: var(--color-background-secondary);
+    border-radius: var(--rounded-lg);
+    padding: var(--spacing-xl);
+  }
+
+  .empty-state-content {
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: var(--font-size-4xl);
+    margin-bottom: var(--spacing-md);
+    display: inline-block;
+  }
+
+  .empty-title {
+    color: var(--color-text-primary);
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--font-size-lg);
+  }
+
+  .empty-description {
+    color: var(--color-text-secondary);
+    margin: 0;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 640px) {
+    .section-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-md);
+    }
+
+    .actions-group {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .file-card-content {
+      padding: var(--spacing-xs);
+    }
+
+    .file-meta {
+      flex-wrap: wrap;
+    }
   }
 </style>

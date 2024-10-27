@@ -1,92 +1,130 @@
-<!-- src/lib/components/ApiKeyInput.svelte -->
 <script>
-    import { onMount } from 'svelte';
-    import { apiKey } from '$lib/stores/apiKey';
+  import { onMount } from 'svelte';
+  import { fade, fly } from 'svelte/transition';
+  import { apiKey } from '$lib/stores/apiKey';
   
-    $: apiKeyInput = $apiKey || '';
+  // Component state
+  let apiKeyInput = '';
+  let isVisible = false;
+  let isFocused = false;
+  let isValid = false;
+  let isDirty = false;
   
-    onMount(() => {
-      const storedApiKey = localStorage.getItem('apiKey');
-      if (storedApiKey) {
-        apiKey.set(storedApiKey);
-      }
-    });
+  // Validation function
+  function validateApiKey(key) {
+    return key && key.length >= 32;
+  }
   
-    $: if (apiKeyInput !== $apiKey) {
-      apiKey.set(apiKeyInput);
-      if (apiKeyInput) {
-        localStorage.setItem('apiKey', apiKeyInput);
+  // Handle input changes
+  function handleInput(event) {
+    const value = event.target.value;
+    isDirty = true;
+    isValid = validateApiKey(value);
+    
+    if (value !== $apiKey) {
+      apiKey.set(value);
+      if (value) {
+        localStorage.setItem('apiKey', value);
       } else {
         localStorage.removeItem('apiKey');
       }
     }
-  </script>
+  }
   
-  <section class="api-key-section">
-    <h2>API Key</h2>
-    <div class="api-key-input">
-      <input
-        type="password"
-        bind:value={apiKeyInput}
-        placeholder="Enter your API key"
-        class="input"
-      />
-      <p class="api-key-info">
-        Don't have an API key? Get one from
-        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">
-          OpenAI API Keys
-        </a>.
-      </p>
+  // Toggle password visibility
+  function toggleVisibility() {
+    isVisible = !isVisible;
+  }
+  
+  // Initialize from localStorage
+  onMount(() => {
+    const storedApiKey = localStorage.getItem('apiKey');
+    if (storedApiKey) {
+      apiKeyInput = storedApiKey;
+      apiKey.set(storedApiKey);
+      isValid = validateApiKey(storedApiKey);
+      isDirty = true;
+    }
+  });
+</script>
+
+<div
+  class="card api-key-card animate-fade-in"
+  class:is-valid={isValid}
+  class:is-invalid={isDirty && !isValid}
+>
+  <div class="card-header">
+    <h2 class="section-title">
+      <span class="icon">🔑</span>
+      API Key
+    </h2>
+  </div>
+
+  <div class="input-container" class:is-focused={isFocused}>
+    <div class="input-wrapper">
+      {#if isVisible}
+        <input
+          type="text"
+          bind:value={apiKeyInput}
+          on:input={handleInput}
+          on:focus={() => isFocused = true}
+          on:blur={() => isFocused = false}
+          placeholder="Enter your OpenAI API key"
+          class="input"
+          class:is-valid={isValid}
+          class:is-invalid={isDirty && !isValid}
+        />
+      {:else}
+        <input
+          type="password"
+          bind:value={apiKeyInput}
+          on:input={handleInput}
+          on:focus={() => isFocused = true}
+          on:blur={() => isFocused = false}
+          placeholder="Enter your OpenAI API key"
+          class="input"
+          class:is-valid={isValid}
+          class:is-invalid={isDirty && !isValid}
+        />
+      {/if}
+      <button
+        type="button"
+        class="visibility-toggle"
+        on:click={toggleVisibility}
+        aria-label={isVisible ? 'Hide API key' : 'Show API key'}
+      >
+        <span class="icon">
+          {#if isVisible}
+            👁️
+          {:else}
+            🔒
+          {/if}
+        </span>
+      </button>
     </div>
-  </section>
-  
-  <style>
-    .api-key-section {
-      border: 2px solid var(--color-prime);
-      padding: 20px;
-      border-radius: var(--rounded-corners);
-      margin-bottom: 20px;
-      background-color: rgba(255, 255, 255, 0.9);
-    }
-  
-    h2 {
-      color: var(--color-prime);
-      margin-bottom: 15px;
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 600;
-    }
-  
-    .api-key-input {
-      margin-bottom: 15px;
-    }
-  
-    .input {
-      width: 100%;
-      padding: 10px;
-      border: 2px solid var(--color-prime);
-      border-radius: var(--rounded-corners);
-      font-size: 1rem;
-      outline: none;
-      transition: border-color var(--transition-speed);
-      box-sizing: border-box;
-    }
-  
-    .input:focus {
-      border-color: var(--color-second);
-    }
-  
-    .api-key-info {
-      margin-top: 10px;
-      font-size: 0.9rem;
-    }
-  
-    .api-key-info a {
-      color: var(--color-prime);
-      text-decoration: underline;
-    }
-  
-    .api-key-info a:hover {
-      color: var(--color-second);
-    }
-  </style>
-  
+
+    {#if isDirty && !isValid}
+      <div class="error-message" transition:fly={{ y: -10, duration: 200 }}>
+        API key should be at least 32 characters long
+      </div>
+    {/if}
+  </div>
+
+  <div class="help-text">
+    <p class="text-muted">
+      Need an API key? Get one from
+      <a
+        href="https://platform.openai.com/api-keys"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="link"
+      >
+        OpenAI API Keys <span class="icon">↗️</span>
+      </a>
+    </p>
+  </div>
+</div>
+
+<style>
+  /* Your existing styles */
+</style>

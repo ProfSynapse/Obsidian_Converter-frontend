@@ -17,68 +17,75 @@
   /**
    * Handles conversion of selected files and creation of ZIP
    */
-  async function handleStartConversion() {
-    if (!$apiKey) {
-      alert('Please enter your API key first.');
-      return;
-    }
-
-    if ($files.length === 0) {
-      alert('Please add files to convert.');
-      return;
-    }
-
-    console.log('Starting conversion of files:', $files);
-
-    isConverting = true;
-    conversionStatus.setStatus('converting'); 
-    conversionStatus.setProgress(0);
-
-    try {
-      await convertFiles($files, $apiKey, (progress) => {
-        conversionStatus.setProgress(progress);
-      });
-
-      console.log('Conversion and ZIP creation completed');
-      
-    } catch (error) {
-      console.error('Conversion failed:', error);
-      conversionStatus.setError(
-        error instanceof ConversionError 
-          ? error.message 
-          : 'Failed to convert files'
-      );
-      
-      alert(error instanceof ConversionError 
-        ? error.message 
-        : 'An unexpected error occurred during conversion');
-        
-    } finally {
-      isConverting = false;
-    }
+   async function handleStartConversion() {
+  if (!$apiKey) {
+    alert('Please enter your API key first.');
+    return;
   }
+
+  const currentFiles = $files;
+  console.log('🚀 Starting conversion with files:', currentFiles);
+
+  if (currentFiles.length === 0) {
+    alert('Please add files to convert.');
+    return;
+  }
+
+  isConverting = true;
+  conversionStatus.setStatus('converting');
+  conversionStatus.setProgress(0);
+
+  try {
+    await convertFiles(currentFiles, $apiKey, (progress) => {
+      console.log('📊 Conversion progress:', progress);
+      conversionStatus.setProgress(progress);
+    });
+
+    console.log('✅ Conversion completed successfully');
+    
+  } catch (error) {
+    console.error('❌ Conversion failed:', error);
+    console.error('Error stack:', error.stack);
+    conversionStatus.setError(
+      error instanceof ConversionError 
+        ? error.message 
+        : 'Failed to convert files'
+    );
+    
+    alert(error instanceof ConversionError 
+      ? error.message 
+      : 'An unexpected error occurred during conversion');
+      
+  } finally {
+    isConverting = false;
+  }
+}
 
   /**
    * Handles files being added via the FileUploader
    * @param {CustomEvent} event - The filesAdded event
    */
-  function handleFilesAdded(event) {
-    const addedFiles = event.detail.files.map(fileObj => ({
-      id: crypto.randomUUID(), // Generate unique ID
-      name: fileObj.file.name,
-      type: fileObj.file.name.split('.').pop().toLowerCase(),
-      status: 'pending',
-      file: fileObj.file
-    }));
+   function handleFilesAdded(event) {
+  console.log('Received filesAdded event:', event.detail);
 
-    // Reset status when new files are added
-    conversionStatus.reset();
+  const addedItems = event.detail.files.map(item => {
+    console.log('Processing item:', item);
     
-    // Add files to store
-    files.addFiles(addedFiles);
-    
-    console.log('Files added:', addedFiles);
-  }
+    // Item should already be properly formatted, just ensure it has an ID
+    return {
+      ...item,
+      id: item.id || crypto.randomUUID()
+    };
+  });
+
+  // Reset status when new files are added
+  conversionStatus.reset();
+  
+  // Add files to store
+  files.addFiles(addedFiles);
+  
+  console.log('Files added to store:', addedFiles);
+}
 
   /**
    * Clears all files and resets status
@@ -90,11 +97,6 @@
 </script>
 
 <div class="container">
-  <header class="header">
-    <h1>Obsidian Note Converter</h1>
-    <p>Convert your files to Obsidian-compatible Markdown</p>
-  </header>
-
   <main class="main-content">
     <!-- API Key Input -->
     <section class="section">
@@ -117,10 +119,10 @@
 
     <!-- Action Buttons -->
     {#if $files.length > 0}
-      <section class="actions">
+      <section class="flex-center actions">
         <div class="button-group">
           <button
-            class="convert-button"
+            class="btn btn-primary convert-button"
             on:click={handleStartConversion}
             disabled={isConverting || !$apiKey}
           >
@@ -132,7 +134,7 @@
           </button>
 
           <button
-            class="clear-button"
+            class="btn btn-secondary"
             on:click={handleClearFiles}
             disabled={isConverting}
           >
@@ -141,7 +143,7 @@
         </div>
 
         {#if status === 'error'}
-          <p class="error-message">
+          <p class="error">
             Conversion failed. Please try again or check the console for details.
           </p>
         {/if}
@@ -149,7 +151,7 @@
     {/if}
   </main>
 
-  <footer class="footer">
+  <footer class="footer text-center text-muted">
     <p>
       Files will be converted to Markdown and downloaded as a ZIP file ready for 
       importing into Obsidian.
@@ -158,115 +160,27 @@
 </div>
 
 <style>
-  .container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 2rem;
-  }
-
-  .header {
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-
-  h1 {
-    color: var(--color-prime);
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .section {
-    margin-bottom: 2rem;
-  }
-
+  /* Only keeping styles that are specific to this component */
   .actions {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .button-group {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
+    gap: var(--spacing-md);
   }
 
   .convert-button {
-    font-size: 1.2rem;
-    padding: 1rem 2rem;
-    background: var(--gradient-button);
-    color: white;
-    border: none;
-    border-radius: var(--rounded-corners);
-    cursor: pointer;
-    transition: all var(--transition-speed);
-    font-weight: 600;
     min-width: 200px;
   }
 
-  .convert-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .convert-button:disabled {
-    background: #cccccc;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
-
-  .clear-button {
-    padding: 1rem 2rem;
-    background: transparent;
-    color: var(--color-prime);
-    border: 2px solid var(--color-prime);
-    border-radius: var(--rounded-corners);
-    cursor: pointer;
-    transition: all var(--transition-speed);
-    font-weight: 500;
-  }
-
-  .clear-button:hover:not(:disabled) {
-    background: var(--color-prime);
-    color: white;
-  }
-
-  .clear-button:disabled {
-    border-color: #cccccc;
-    color: #cccccc;
-    cursor: not-allowed;
-  }
-
-  .error-message {
-    color: var(--color-error);
-    text-align: center;
-    margin-top: 1rem;
+  .header {
+    margin-bottom: var(--spacing-lg);
   }
 
   .footer {
-    margin-top: 3rem;
-    text-align: center;
-    color: var(--color-text);
-    opacity: 0.8;
-    font-size: 0.9rem;
+    margin-top: var(--spacing-xl);
   }
 
-  /* Responsive adjustments */
+  /* Component-specific responsive adjustments */
   @media (max-width: 600px) {
-    .container {
-      padding: 1rem;
-    }
-
-    .button-group {
-      flex-direction: column;
-      width: 100%;
-    }
-
-    .convert-button,
-    .clear-button {
-      width: 100%;
+    .convert-button {
+      min-width: 100%;
     }
   }
 </style>

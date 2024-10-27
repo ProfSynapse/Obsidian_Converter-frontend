@@ -1,46 +1,33 @@
-obsidian-note-converter-frontend/
-├── src/
-│   ├── lib/
-│   │   ├── components/
-│   │   │   ├── FileUploader/
-│   │   │   │   ├── FileUploader.svelte
-│   │   │   │   └── useFileUpload.js
-│   │   │   ├── ConversionStatus.svelte
-│   │   │   ├── ResultDisplay.svelte
-│   │   │   ├── FileList.svelte
-│   │   │   └── ObsidianNoteConverter.svelte
-│   │   ├── stores/
-│   │   │   ├── apiKey.js
-│   │   │   ├── files.js
-│   │   │   ├── conversionStatus.js
-│   │   │   └── index.js
-│   │   ├── utils/
-│   │   │   ├── api/
-│   │   │   │   ├── client.js
-│   │   │   │   └── endpoints.js
-│   │   │   ├── fileHandler.js
-│   │   │   └── validators.js
-│   │   └── constants.js
-│   ├── routes/
-│   │   ├── api/
-│   │   │   └── create-zip/
-│   │   │       └── +server.js
-│   │   ├── +page.svelte
-│   │   └── +layout.svelte
-│   ├── styles/
-│   │   ├── global.css
-│   └── app.html
-├── static/
-│   └── favicon.png
-├── tests/
-│   └── (test files here)
-├── .env
-├── .gitignore
-├── package.json
-├── README.md
-├── svelte.config.js
-└── vite.config.js
-└── jsconfig.json
+## To Do
+
+8. src/routes/+page.svelte
+The conductor:
+
+Organize component layout
+Add proper spacing
+Implement responsive behavior
+Add section transitions
+Create loading states
+
+9. src/lib/components/FileItem.svelte
+The list item warrior:
+
+Design card layout
+Add file type icons
+Style metadata
+Create hover effects
+Add remove button animations
+
+Implementation Order:
+
+Global Styles (foundation)
+Layout Template (structure)
+ApiKeyInput (entry point)
+FileUploader (main interaction)
+FileList & FileItem (content display)
+ConversionStatus (feedback)
+ResultDisplay (output)
+Page Assembly (final integration)
 
 # Obsidian Note Converter Frontend Documentation
 
