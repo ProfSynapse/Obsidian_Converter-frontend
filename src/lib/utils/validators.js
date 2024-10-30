@@ -54,14 +54,18 @@ export function validateApiKey(apiKey) {
  * @returns {string} - The normalized URL
  */
 export function normalizeUrl(url) {
+  // Remove leading/trailing whitespace and convert to lowercase
   url = url.trim().toLowerCase();
   
-  // If the URL doesn't start with a protocol, add https://
+  // Remove any common prefixes users might copy accidentally
+  url = url.replace(/^(https?:\/\/)?(www\.)?/, '');
+  
+  // Add https:// if no protocol is specified
   if (!/^https?:\/\//i.test(url)) {
     url = 'https://' + url;
   }
   
-  // If the URL doesn't have www., add it after the protocol
+  // Add www. if not present (optional, depending on your requirements)
   if (!/^https?:\/\/www\./i.test(url)) {
     url = url.replace(/^(https?:\/\/)/, '$1www.');
   }
@@ -69,22 +73,56 @@ export function normalizeUrl(url) {
   return url;
 }
 
+// In validators.js
 /**
- * Validates a URL's format
+ * Normalizes and validates a URL
  * @param {string} url - The URL to validate
- * @throws Will throw an error if validation fails
  * @returns {string} - The normalized URL if valid
  */
-export function validateUrl(url) {
-  try {
-    url = normalizeUrl(url);
-    new URL(url);
-    return url; // Return the normalized URL
-  } catch (error) {
-    throw new Error('Invalid URL format');
-  }
-}
+  export function validateUrl(url) {
+    try {
+      // Remove whitespace
+      url = url.trim();
+      
+      // Debug log
+      console.log('Input URL:', url);
 
+      // If URL doesn't have a protocol, add https://
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url.replace(/^\/\//, '');
+      }
+
+      console.log('URL after protocol check:', url);
+
+      // Try to construct URL object to validate
+      const urlObj = new URL(url);
+      
+      // Ensure the hostname has at least one dot and some content on both sides
+      if (!/^[^.]+\.[^.]+/.test(urlObj.hostname)) {
+        throw new Error('Invalid domain format');
+      }
+
+      console.log('Final validated URL:', url);
+      return url;
+
+    } catch (error) {
+      console.error('URL Validation Error:', error);
+      throw new Error('Please enter a valid website address');
+    }
+  }
+
+/**
+ * Checks if input could be a valid URL with proper formatting
+ * @param {string} input - The input to check
+ * @returns {boolean} - True if input could be a valid URL
+ */
+export function couldBeValidUrl(input) {
+  // Remove common prefixes and whitespace
+  const cleaned = input.trim().replace(/^(https?:\/\/)?(www\.)?/, '');
+  
+  // Check if there's at least one dot and some content on both sides
+  return /^[^.]+\.[^.]+/.test(cleaned);
+}
 /**
  * Validates the inputs for the conversion process
  * @param {Array} files - Array of files to convert

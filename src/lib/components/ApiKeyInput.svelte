@@ -1,9 +1,9 @@
+<!-- src/lib/components/ApiKeyInput.svelte -->
 <script>
   import { onMount } from 'svelte';
   import { fade, fly } from 'svelte/transition';
   import { apiKey } from '$lib/stores/apiKey';
   
-  // Component state
   let apiKeyInput = '';
   let isVisible = false;
   let isFocused = false;
@@ -126,5 +126,105 @@
 </div>
 
 <style>
-  /* Your existing styles */
+  /* Utilize the global .card class for consistent styling */
+  .api-key-card {
+    /* Remove any fixed width to align with parent container */
+    width: 100%;
+  }
+
+  .input-container {
+    margin-top: var(--spacing-md);
+    position: relative;
+  }
+
+  .input-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
+  .input {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    padding-right: 2.5rem; /* Space for the toggle button */
+    font-size: var(--font-size-base);
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    box-sizing: border-box; /* Ensure padding is included in width */
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(147, 39, 143, 0.1);
+  }
+
+  .visibility-toggle {
+    position: absolute;
+    top: 50%;
+    right: var(--spacing-xs);
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: var(--font-size-lg);
+    color: var(--color-text-secondary);
+    transition: color var(--transition-duration-normal) var(--transition-timing-ease);
+  }
+
+  .visibility-toggle:hover {
+    color: var(--color-prime);
+  }
+
+  /* Error Message Styling */
+  .error-message {
+    margin-top: var(--spacing-2xs);
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+  }
+
+  /* Help Text Styling */
+  .help-text {
+    margin-top: var(--spacing-md);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .help-text .link {
+    color: var(--color-prime);
+    text-decoration: none;
+    transition: color var(--transition-duration-normal) var(--transition-timing-ease);
+  }
+
+  .help-text .link:hover {
+    color: var(--color-second);
+  }
+
+  /* Responsive Design */
+  @media (max-width: 640px) {
+    .input-container {
+      margin-top: var(--spacing-sm);
+    }
+
+    .input {
+      padding: var(--spacing-2xs) var(--spacing-xs);
+      padding-right: 2rem;
+      font-size: var(--font-size-sm);
+    }
+
+    .visibility-toggle {
+      right: var(--spacing-2xs);
+      font-size: var(--font-size-md);
+    }
+
+    .error-message {
+      font-size: var(--font-size-xs);
+    }
+
+    .help-text {
+      font-size: var(--font-size-xs);
+    }
+  }
 </style>

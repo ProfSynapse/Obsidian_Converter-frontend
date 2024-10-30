@@ -1,57 +1,66 @@
-// src/lib/stores/files.js
-
+// in stores/files.js
 import { writable } from 'svelte/store';
 import { v4 as uuidv4 } from 'uuid';
 
-/**
- * Creates and returns a files store
- */
 function createFilesStore() {
   const { subscribe, update, set } = writable([]);
 
   return {
     subscribe,
+    
     addFile: (file) => {
-      console.log('📁 addFile called with:', file);
-      if (!file.id) {
-        file.id = crypto.randomUUID();
-      }
+      console.log('📁 Adding file:', file);
+      // Always generate a new ID when adding a file
+      const newFile = {
+        ...file,
+        id: uuidv4() // Generate new ID even if one exists
+      };
+      
       update(files => {
-        console.log('📁 Current files in store:', files);
-        console.log('📁 Adding new file:', file);
-        return [...files, file];
+        // Check for duplicates before adding
+        const isDuplicate = files.some(f => 
+          (f.url && f.url === newFile.url) || 
+          (f.name && f.name === newFile.name)
+        );
+        
+        if (isDuplicate) {
+          console.log('📁 Duplicate file detected, skipping:', newFile);
+          return files;
+        }
+        
+        console.log('📁 Adding new file to store:', newFile);
+        return [...files, newFile];
       });
     },
-    addFiles: (newFiles) => {
-      console.log('📁 addFiles called with:', newFiles);
+
+    removeFile: (id) => {
+      console.log('📁 Removing file:', id);
       update(files => {
-        console.log('📁 Current files in store:', files);
-        const updatedFiles = [...files, ...newFiles];
-        console.log('📁 Updated files store:', updatedFiles);
+        const updatedFiles = files.filter(f => f.id !== id);
+        console.log('📁 Updated files after removal:', updatedFiles);
         return updatedFiles;
       });
     },
-    removeFile: (id) => {
-      console.log('📁 Removing file:', id);
-      update(files => files.filter(f => f.id !== id));
-    },
+
     updateFile: (id, data) => {
-      console.log('📁 Updating file:', id, 'with:', data);
       update(files => files.map(file => 
         file.id === id ? { ...file, ...data } : file
       ));
     },
+
     clearFiles: () => {
-      console.log('📁 Clearing files store');
+      console.log('📁 Clearing all files');
       set([]);
     },
-    getFiles: () => {
-      let files = [];
-      subscribe(value => {
-        files = value;
-      })();
-      console.log('📁 Getting files:', files);
-      return files;
+
+    // New method to check if a file exists
+    hasFile: (url) => {
+      let exists = false;
+      update(files => {
+        exists = files.some(f => f.url === url);
+        return files;
+      });
+      return exists;
     }
   };
 }

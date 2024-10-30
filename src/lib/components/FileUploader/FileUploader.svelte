@@ -1,8 +1,10 @@
+<!-- src/lib/components/Uploader.svelte -->
 <script>
   import { createEventDispatcher } from 'svelte';
   import { fade, fly, scale } from 'svelte/transition';
   import { files } from '$lib/stores/files.js';
   import FileListComponent from '$lib/components/FileList.svelte';
+  import { validateUrl, couldBeValidUrl } from '$lib/utils/validators.js';
 
   const dispatch = createEventDispatcher();
 
@@ -105,52 +107,46 @@
   }
 
   /**
-   * Validates the entered URL.
-   * @param {string} url - The URL to validate.
-   * @returns {boolean} - True if valid, else false.
-   */
-  function validateUrl(url) {
-    try {
-      const parsed = new URL(url);
-      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-    } catch {
-      return false;
-    }
-  }
-
-  /**
    * Adds the entered URL to the store after validation.
    */
-  function addUrl() {
-    errorMessage = '';
-    const url = urlInput.trim();
-
-    if (!url) {
-      showError(`Please enter a ${activeTab === 'parent' ? 'Parent URL' : 'URL'}`);
-      return;
-    }
-
-    if (!validateUrl(url)) {
-      showError(`Please enter a valid ${activeTab === 'parent' ? 'Parent URL' : 'URL'}`);
-      return;
-    }
-
+  async function addUrl() {
     try {
-      const parsedUrl = new URL(url);
+      const url = urlInput.trim();
+      
+      if (!url) {
+        throw new Error(`Please enter a ${activeTab === 'parent' ? 'Parent URL' : 'URL'}`);
+      }
+
+      if (!couldBeValidUrl(url)) {
+        throw new Error('Please enter a valid website address (e.g., example.com)');
+      }
+
+      const normalizedUrl = validateUrl(url);
+      
+      // Check if URL already exists in store
+      if (files.hasFile(normalizedUrl)) {
+        throw new Error('This URL has already been added');
+      }
+
       const newFile = {
-        id: crypto.randomUUID(),
-        url: parsedUrl.href,
-        name: parsedUrl.hostname,
-        type: activeTab === 'parent' ? 'parentUrl' : 'url',
-        status: 'pending',
+      id: crypto.randomUUID(),
+      url: normalizedUrl,
+      parentUrl: activeTab === 'parent' ? normalizedUrl : undefined,
+      name: new URL(normalizedUrl).hostname,
+      type: activeTab === 'parent' ? 'parentUrl' : 'url',
+      status: 'pending',
       };
 
       files.addFile(newFile);
       urlInput = '';
       showSuccess('URL added successfully');
-      dispatch('filesAdded', { files: [newFile] });
+      dispatch('filesAdded', {
+        addedFiles: [newFile]
+      });
+
     } catch (error) {
-      showError(`Invalid URL format`);
+      console.error('Error adding URL:', error);
+      showError(error.message);
     }
   }
 
@@ -347,7 +343,9 @@
 </div>
 
 <style>
+  /* Utilize the global .card class for consistent styling */
   .uploader-container {
+    width: 100%; /* Allow the card to take full width of parent */
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xl);
@@ -382,6 +380,7 @@
     transition: all var(--transition-duration-normal) var(--transition-timing-ease);
     color: var(--color-text-secondary);
     font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-base);
   }
 
   .tab-button.active {
@@ -400,27 +399,43 @@
     position: relative;
   }
 
-  .url-input {
-    padding-right: var(--spacing-xl);
+  .input-group {
+    display: flex;
+    gap: var(--spacing-xs);
     width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--color-border);
+  }
+
+  .url-input {
+    flex: 1;
+    padding-right: 3rem; /* Space for the add button */
+    border: var(--border-width-normal) solid var(--color-border);
     border-radius: var(--rounded-md);
     font-size: var(--font-size-base);
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    box-sizing: border-box;
+  }
+
+  .url-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(147, 39, 143, 0.1);
   }
 
   .btn-icon {
-    padding: var(--spacing-sm);
-    aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: var(--spacing-sm);
     background: var(--color-prime);
     color: #fff;
     border: none;
     border-radius: var(--rounded-md);
     cursor: pointer;
     transition: background var(--transition-duration-normal) var(--transition-timing-ease);
+    font-size: var(--font-size-lg);
+    width: 3rem;
+    height: 3rem;
+    flex-shrink: 0;
   }
 
   .btn-icon:disabled {
@@ -429,7 +444,7 @@
   }
 
   .btn-icon:hover:not(:disabled) {
-    background: var(--color-prime-dark);
+    background: var(--color-second);
   }
 
   /* Drop Zone Styling */
@@ -439,9 +454,13 @@
     border-radius: var(--rounded-lg);
     padding: var(--spacing-2xl);
     background: var(--gradient-surface);
-    transition: all var(--transition-duration-normal) var(--transition-timing-bounce);
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
     cursor: pointer;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
   }
 
   .drop-zone::before {
@@ -473,18 +492,14 @@
     gap: var(--spacing-lg);
   }
 
-  .drop-zone-content.dragging {
-    /* Add any specific styles for the content when dragging */
-  }
-
   .icon-container {
     font-size: var(--font-size-4xl);
     color: var(--color-prime);
-    transition: transform var(--transition-duration-normal) var(--transition-timing-bounce);
+    transition: transform var(--transition-duration-normal) var(--transition-timing-ease);
   }
 
   .icon-container.animate-bounce {
-    animation: bounce 1s infinite var(--transition-timing-bounce);
+    animation: bounce 1s infinite var(--transition-timing-ease);
   }
 
   .drop-text {
@@ -517,6 +532,7 @@
   .format-group {
     display: inline-flex;
     gap: var(--spacing-2xs);
+    flex-wrap: wrap;
   }
 
   .format-category {
@@ -555,13 +571,6 @@
     border: 0;
   }
 
-  /* Input Group Styling */
-  .input-group {
-    display: flex;
-    gap: var(--spacing-xs);
-    width: 100%;
-  }
-
   /* Animations */
   @keyframes bounce {
     0%, 100% {
@@ -582,38 +591,6 @@
     75% {
       transform: translateX(5px);
     }
-  }
-
-  @keyframes pulse {
-    0% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.05);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
-
-  /* Custom Scrollbar */
-  .format-groups::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  .format-groups::-webkit-scrollbar-track {
-    background: var(--color-background-secondary);
-    border-radius: var(--rounded-full);
-  }
-
-  .format-groups::-webkit-scrollbar-thumb {
-    background: var(--color-prime);
-    border-radius: var(--rounded-full);
-  }
-
-  .format-groups::-webkit-scrollbar-thumb:hover {
-    background: var(--color-second);
   }
 
   /* Responsive Design */
@@ -667,7 +644,7 @@
 
     .btn-icon {
       width: 100%;
-      aspect-ratio: auto;
+      height: 3rem;
     }
   }
 
@@ -702,7 +679,7 @@
   /* Success States */
   .drop-zone.success {
     border-color: var(--color-success);
-    animation: pulse 0.5s var(--transition-timing-bounce);
+    animation: pulse 0.5s var(--transition-timing-ease);
   }
 
   /* Accessibility */
