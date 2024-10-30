@@ -1,8 +1,9 @@
-<!-- src/lib/components/Uploader.svelte -->
+<!-- src/lib/components/FileUploader/FileUploader.svelte -->
 <script>
   import { createEventDispatcher } from 'svelte';
   import { fade, fly, scale } from 'svelte/transition';
   import { files } from '$lib/stores/files.js';
+  import { conversionStatus } from '$lib/stores/conversionStatus.js';
   import FileListComponent from '$lib/components/FileList.svelte';
   import { validateUrl, couldBeValidUrl } from '$lib/utils/validators.js';
 
@@ -11,12 +12,12 @@
   // UI state
   let dragOver = false;
   let urlInput = '';
-  let activeTab = 'single'; // 'single' or 'parent'
+  let activeTab = 'single';
   let fileInputElement;
   let errorMessage = '';
   let feedbackTimeout;
 
-  // Supported file types grouped by category
+  // File type configuration
   const SUPPORTED_FILES = {
     documents: ['txt', 'rtf', 'pdf', 'docx', 'odt', 'epub'],
     data: ['csv', 'json', 'yaml', 'yml', 'xlsx', 'pptx'],
@@ -27,9 +28,7 @@
   const SUPPORTED_EXTENSIONS = Object.values(SUPPORTED_FILES).flat();
 
   /**
-   * Checks if the file type is supported based on its extension.
-   * @param {string} filename - The name of the file.
-   * @returns {boolean} - True if the file type is supported, else false.
+   * Validates file type against supported extensions
    */
   function isValidFileType(filename) {
     const extension = filename.split('.').pop().toLowerCase();
@@ -37,62 +36,70 @@
   }
 
   /**
-   * Retrieves the simple file type (extension) from a File object.
-   * @param {File} file - The file object.
-   * @returns {string} - The file extension.
+   * Gets file type and category info
    */
-  function getSimpleFileType(file) {
-    return file.name.split('.').pop().toLowerCase();
+  function getFileInfo(file) {
+    const type = file.name.split('.').pop().toLowerCase();
+    const category = Object.entries(SUPPORTED_FILES)
+      .find(([cat, exts]) => exts.includes(type))?.[0] || 'other';
+    
+    return { type, category };
   }
 
   /**
-   * Determines the category of the file based on its extension.
-   * @param {string} extension - The file extension.
-   * @returns {string} - The category name.
+   * Shows feedback message to user
    */
-  function getFileCategory(extension) {
-    return Object.entries(SUPPORTED_FILES).find(([category, extensions]) => 
-      extensions.includes(extension)
-    )?.[0] || 'other';
+  function showFeedback(message, type = 'error') {
+    errorMessage = message;
+    if (feedbackTimeout) clearTimeout(feedbackTimeout);
+    feedbackTimeout = setTimeout(() => errorMessage = '', 5000);
+    
+    if (type === 'success') {
+      console.log('Success:', message);
+    }
   }
 
   /**
-   * Adds selected files to the store after validation.
-   * @param {FileList} selectedFiles - The list of selected files.
+   * Processes and adds single file
    */
-  function addFiles(selectedFiles) {
+  function processFile(file) {
+    if (!(file instanceof File)) {
+      throw new Error('Invalid file object');
+    }
+
+    if (!isValidFileType(file.name)) {
+      throw new Error(`Unsupported file type: ${file.name.split('.').pop()}`);
+    }
+
+    const { type, category } = getFileInfo(file);
+    
+    return {
+      id: crypto.randomUUID(),
+      file,
+      name: file.name,
+      type,
+      category,
+      size: file.size,
+      status: 'pending'
+    };
+  }
+
+  /**
+   * Handles adding files to store
+   */
+  function handleFiles(selectedFiles) {
     errorMessage = '';
     const filesArray = Array.from(selectedFiles);
     const addedFiles = [];
     
-    for (let file of filesArray) {
+    for (const file of filesArray) {
       try {
-        if (!(file instanceof File)) {
-          throw new Error('Invalid file object');
-        }
-
-        if (!isValidFileType(file.name)) {
-          throw new Error(`Unsupported file type: ${file.name.split('.').pop()}`);
-        }
-
-        const fileType = getSimpleFileType(file);
-        const category = getFileCategory(fileType);
-        
-        const newFile = {
-          id: crypto.randomUUID(),
-          file,
-          name: file.name,
-          type: fileType,
-          category,
-          size: file.size,
-          status: 'pending',
-        };
-
+        const newFile = processFile(file);
         files.addFile(newFile);
         addedFiles.push(newFile);
       } catch (error) {
-        console.error('Error adding file:', error);
-        showError(error.message);
+        console.error('Error processing file:', error);
+        showFeedback(error.message);
       }
     }
 
@@ -101,15 +108,18 @@
     }
 
     if (addedFiles.length > 0) {
-      showSuccess(`Added ${addedFiles.length} file(s) successfully`);
+      showFeedback(`Added ${addedFiles.length} file(s) successfully`, 'success');
       dispatch('filesAdded', { files: addedFiles });
     }
+
+    return addedFiles;
   }
 
   /**
-   * Adds the entered URL to the store after validation.
+   * Handles URL processing and addition
    */
-  async function addUrl() {
+
+  async function handleUrl() {
     try {
       const url = urlInput.trim();
       
@@ -118,123 +128,97 @@
       }
 
       if (!couldBeValidUrl(url)) {
-        throw new Error('Please enter a valid website address (e.g., example.com)');
+        throw new Error('Please enter a valid website address');
       }
 
       const normalizedUrl = validateUrl(url);
       
-      // Check if URL already exists in store
-      if (files.hasFile(normalizedUrl)) {
-        throw new Error('This URL has already been added');
-      }
-
       const newFile = {
-      id: crypto.randomUUID(),
-      url: normalizedUrl,
-      parentUrl: activeTab === 'parent' ? normalizedUrl : undefined,
-      name: new URL(normalizedUrl).hostname,
-      type: activeTab === 'parent' ? 'parentUrl' : 'url',
-      status: 'pending',
+        id: crypto.randomUUID(),
+        url: normalizedUrl,
+        parentUrl: activeTab === 'parent' ? normalizedUrl : undefined,
+        name: new URL(normalizedUrl).hostname,
+        type: activeTab === 'parent' ? 'parentUrl' : 'url',
+        status: 'pending'
       };
 
-      files.addFile(newFile);
-      urlInput = '';
-      showSuccess('URL added successfully');
-      dispatch('filesAdded', {
-        addedFiles: [newFile]
-      });
+      // Use the enhanced addFile result
+      const result = files.addFile(newFile);
+      
+      if (result.success) {
+        urlInput = '';
+        showFeedback(result.message, 'success');
+        dispatch('filesAdded', { files: [newFile] });
+      } else {
+        showFeedback(result.message, 'error');
+      }
 
     } catch (error) {
       console.error('Error adding URL:', error);
-      showError(error.message);
+      showFeedback(error.message, 'error');
     }
   }
 
   /**
-   * Displays an error message for a limited time.
-   * @param {string} message - The error message to display.
+   * Event handler for drag and drop
    */
-  function showError(message) {
-    errorMessage = message;
-    if (feedbackTimeout) clearTimeout(feedbackTimeout);
-    feedbackTimeout = setTimeout(() => errorMessage = '', 5000);
+  function handleDragDrop(event) {
+    event.preventDefault();
+    dragOver = false;
+    
+    const droppedFiles = event.dataTransfer?.files;
+    if (droppedFiles?.length) {
+      handleFiles(droppedFiles);
+    }
   }
 
   /**
-   * Placeholder for success message implementation.
-   * @param {string} message - The success message to display.
-   */
-  function showSuccess(message) {
-    // Implementation for success message if needed
-    // Example: You can dispatch another event or use a store to show success notifications
-    console.log(message);
-  }
-
-  // Drag and Drop Event Handlers
-
-  /**
-   * Handles the drag enter event.
-   * @param {DragEvent} event - The drag event.
+   * Drag enter/leave handlers
    */
   function handleDragEnter(event) {
     event.preventDefault();
     dragOver = true;
   }
 
-  /**
-   * Handles the drag leave event.
-   * @param {DragEvent} event - The drag event.
-   */
   function handleDragLeave(event) {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX;
-    const y = event.clientY;
+    const { clientX: x, clientY: y } = event;
 
-    if (
-      x <= rect.left ||
-      x >= rect.right ||
-      y <= rect.top ||
-      y >= rect.bottom
-    ) {
+    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
       dragOver = false;
     }
   }
 
   /**
-   * Handles the drop event.
-   * @param {DragEvent} event - The drop event.
-   */
-  function handleDrop(event) {
-    event.preventDefault();
-    dragOver = false;
-    const droppedFiles = event.dataTransfer?.files;
-    if (droppedFiles) {
-      addFiles(droppedFiles);
-    }
-  }
-
-  /**
-   * Handles file selection via the hidden file input.
-   * @param {Event} event - The change event.
+   * File input change handler
    */
   function handleFileSelect(event) {
     const selectedFiles = event.target?.files;
-    if (selectedFiles) {
-      addFiles(selectedFiles);
+    if (selectedFiles?.length) {
+      handleFiles(selectedFiles);
     }
   }
 
   /**
-   * Handles keypress events for accessibility.
-   * @param {KeyboardEvent} event - The keyboard event.
+   * Accessibility handler for keyboard events
    */
   function handleKeyPress(event) {
     if (event.key === 'Enter' || event.key === ' ') {
-      fileInputElement.click();
+      fileInputElement?.click();
+    }
+  }
+
+  // Reset conversion status when component initializes
+  $: {
+    if ($files.length === 0) {
+      conversionStatus.reset();
     }
   }
 </script>
+
+<!-- Rest of your template code remains the same -->
+<!-- Just update the event handlers to use the new function names -->
 
 <div class="uploader-container card animate-fade-in">
   <!-- Tabs Section -->
@@ -266,11 +250,11 @@
           bind:value={urlInput}
           placeholder={`Enter a ${activeTab === 'parent' ? 'Parent URL' : 'URL'} to convert`}
           class="input url-input"
-          on:keypress={(e) => e.key === 'Enter' && addUrl()}
+          on:keypress={(e) => e.key === 'Enter' && handleUrl()}
         />
         <button 
           class="btn btn-primary btn-icon"
-          on:click={addUrl}
+          on:click={handleUrl}
           disabled={!urlInput.trim()}
           aria-label={`Add ${activeTab === 'parent' ? 'Parent URL' : 'URL'}`}
         >
@@ -280,15 +264,15 @@
     </div>
   </div>
 
-  <!-- Enhanced Drop Zone -->
+  <!-- Drop Zone -->
   <div
     class="drop-zone"
     class:dragging={dragOver}
     on:dragenter={handleDragEnter}
     on:dragover|preventDefault
     on:dragleave={handleDragLeave}
-    on:drop={handleDrop}
-    on:click={() => fileInputElement.click()}
+    on:drop={handleDragDrop}
+    on:click={() => fileInputElement?.click()}
     on:keypress={handleKeyPress}
     role="button"
     tabindex="0"
@@ -343,27 +327,26 @@
 </div>
 
 <style>
-  /* Utilize the global .card class for consistent styling */
   .uploader-container {
-    width: 100%; /* Allow the card to take full width of parent */
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xl);
-  }
-
-  /* Tabs Styling */
-  .tabs-section {
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+  }
+
+  /* Tabs */
+  .tabs-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
   }
 
   .tabs {
     display: flex;
     gap: var(--spacing-xs);
     padding: var(--spacing-xs);
-    background: var(--color-background-secondary);
-    border-radius: var(--rounded-lg);
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: var(--rounded-md);
   }
 
   .tab-button {
@@ -372,193 +355,117 @@
     align-items: center;
     justify-content: center;
     gap: var(--spacing-xs);
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: var(--spacing-sm);
     background: transparent;
     border: none;
-    border-radius: var(--rounded-md);
+    border-radius: var(--rounded-sm);
     cursor: pointer;
-    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
-    color: var(--color-text-secondary);
-    font-weight: var(--font-weight-medium);
+    color: var(--color-text-light);
     font-size: var(--font-size-base);
   }
 
   .tab-button.active {
-    background: var(--color-background-primary);
+    background: var(--color-surface);
     color: var(--color-prime);
     box-shadow: var(--shadow-sm);
   }
 
-  .tab-button:hover:not(.active) {
-    background: var(--color-hover);
-    color: var(--color-text-primary);
-  }
-
-  /* URL Input Styling */
-  .url-input-container {
-    position: relative;
-  }
-
+  /* URL Input */
   .input-group {
     display: flex;
     gap: var(--spacing-xs);
-    width: 100%;
   }
 
   .url-input {
     flex: 1;
-    padding-right: 3rem; /* Space for the add button */
-    border: var(--border-width-normal) solid var(--color-border);
-    border-radius: var(--rounded-md);
-    font-size: var(--font-size-base);
-    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
-    box-sizing: border-box;
-  }
-
-  .url-input:focus {
-    outline: none;
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px rgba(147, 39, 143, 0.1);
+    min-width: 0;
   }
 
   .btn-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--spacing-sm);
-    background: var(--color-prime);
-    color: #fff;
-    border: none;
-    border-radius: var(--rounded-md);
-    cursor: pointer;
-    transition: background var(--transition-duration-normal) var(--transition-timing-ease);
-    font-size: var(--font-size-lg);
-    width: 3rem;
-    height: 3rem;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     flex-shrink: 0;
   }
 
-  .btn-icon:disabled {
-    background: var(--color-disabled);
-    cursor: not-allowed;
-  }
-
-  .btn-icon:hover:not(:disabled) {
-    background: var(--color-second);
-  }
-
-  /* Drop Zone Styling */
+  /* Drop Zone */
   .drop-zone {
-    position: relative;
-    border: var(--border-width-normal) dashed var(--color-prime);
-    border-radius: var(--rounded-lg);
-    padding: var(--spacing-2xl);
-    background: var(--gradient-surface);
-    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    border: 2px dashed var(--color-prime);
+    border-radius: var(--rounded-md);
+    padding: var(--spacing-lg);
+    transition: all var(--transition-speed);
     cursor: pointer;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-  }
-
-  .drop-zone::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--gradient-primary);
-    opacity: 0;
-    transition: opacity var(--transition-duration-normal) var(--transition-timing-ease);
-    z-index: 0;
+    text-align: center;
   }
 
   .drop-zone.dragging {
     border-style: solid;
-    transform: scale(1.02);
-    border-color: var(--color-accent);
-  }
-
-  .drop-zone.dragging::before {
-    opacity: 0.05;
+    border-color: var(--color-second);
+    background: rgba(0, 169, 157, 0.05);
   }
 
   .drop-zone-content {
-    position: relative;
-    z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-md);
   }
 
   .icon-container {
-    font-size: var(--font-size-4xl);
+    font-size: var(--font-size-xl);
     color: var(--color-prime);
-    transition: transform var(--transition-duration-normal) var(--transition-timing-ease);
   }
 
   .icon-container.animate-bounce {
-    animation: bounce 1s infinite var(--transition-timing-ease);
+    animation: bounce 1s infinite;
   }
 
   .drop-text {
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
   }
 
   .primary-text {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-medium);
-    margin: 0 0 var(--spacing-md);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    margin: 0;
   }
 
   .supported-formats {
-    color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
-  }
-
-  .format-title {
-    margin: 0 0 var(--spacing-xs);
-    font-weight: var(--font-weight-medium);
+    color: var(--color-text-light);
   }
 
   .format-groups {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
     justify-content: center;
   }
 
   .format-group {
-    display: inline-flex;
+    display: flex;
     gap: var(--spacing-2xs);
-    flex-wrap: wrap;
   }
 
   .format-category {
-    font-weight: var(--font-weight-medium);
     color: var(--color-prime);
+    font-weight: 500;
   }
 
-  .format-list {
-    color: var(--color-text-tertiary);
-  }
-
-  /* Error Message Styling */
+  /* Error Message */
   .error-message {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
-    padding: var(--spacing-sm) var(--spacing-md);
+    padding: var(--spacing-sm);
     background: var(--color-error-light);
     color: var(--color-error);
-    border-radius: var(--rounded-md);
+    border-radius: var(--rounded-sm);
     font-size: var(--font-size-sm);
-    border-left: 4px solid var(--color-error);
-    animation: shake 0.5s var(--transition-timing-ease);
   }
 
-  /* Hidden Input */
   .hidden-input {
     position: absolute;
     width: 1px;
@@ -567,53 +474,23 @@
     margin: -1px;
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
     border: 0;
   }
 
-  /* Animations */
   @keyframes bounce {
-    0%, 100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-10px);
-    }
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
   }
 
-  @keyframes shake {
-    0%, 100% {
-      transform: translateX(0);
-    }
-    25% {
-      transform: translateX(-5px);
-    }
-    75% {
-      transform: translateX(5px);
-    }
-  }
-
-  /* Responsive Design */
+  /* Responsive */
   @media (max-width: 768px) {
     .drop-zone {
-      padding: var(--spacing-xl);
+      padding: var(--spacing-md);
     }
 
     .format-groups {
       flex-direction: column;
       align-items: center;
-    }
-
-    .format-group {
-      text-align: center;
-    }
-
-    .icon-container {
-      font-size: var(--font-size-3xl);
-    }
-
-    .primary-text {
-      font-size: var(--font-size-base);
     }
   }
 
@@ -622,86 +499,17 @@
       flex-direction: column;
     }
 
-    .drop-zone {
-      padding: var(--spacing-lg);
-    }
-
-    .drop-zone-content {
-      gap: var(--spacing-md);
-    }
-
-    .format-title {
-      display: none;
-    }
-
-    .format-groups {
-      font-size: var(--font-size-xs);
-    }
-
     .input-group {
       flex-direction: column;
     }
 
     .btn-icon {
       width: 100%;
-      height: 3rem;
-    }
-  }
-
-  /* Focus States */
-  .tab-button:focus-visible,
-  .drop-zone:focus-visible {
-    outline: 2px solid var(--color-prime);
-    outline-offset: 2px;
-  }
-
-  /* Hover States */
-  .drop-zone:hover:not(.dragging) {
-    border-color: var(--color-second);
-    transform: scale(1.01);
-  }
-
-  .icon-container:hover {
-    transform: scale(1.1);
-  }
-
-  /* Active States */
-  .drop-zone:active {
-    transform: scale(0.99);
-  }
-
-  /* Loading States */
-  .drop-zone.loading {
-    opacity: 0.7;
-    cursor: wait;
-  }
-
-  /* Success States */
-  .drop-zone.success {
-    border-color: var(--color-success);
-    animation: pulse 0.5s var(--transition-timing-ease);
-  }
-
-  /* Accessibility */
-  @media (prefers-reduced-motion: reduce) {
-    .drop-zone,
-    .icon-container,
-    .tab-button {
-      transition: none;
-      animation: none;
-    }
-  }
-
-  /* Print Styles */
-  @media print {
-    .drop-zone {
-      border: 1px solid #000;
-      background: none;
+      height: 32px;
     }
 
-    .tab-button {
-      print-color-adjust: exact;
-      -webkit-print-color-adjust: exact;
+    .format-title {
+      display: none;
     }
   }
 </style>

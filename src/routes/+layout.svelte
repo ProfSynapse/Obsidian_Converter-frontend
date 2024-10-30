@@ -1,19 +1,16 @@
+<!-- src/routes/+layout.svelte -->
 <script>
   import { onMount } from 'svelte';
   import '$lib/styles/global.css';
   
-  // Add smooth scroll behavior
   onMount(() => {
     document.documentElement.style.scrollBehavior = 'smooth';
   });
 </script>
 
 <svelte:head>
-  <!-- Meta tags for better SEO and mobile display -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#00a99d">
-  
-  <!-- Preload critical fonts -->
   <link 
     rel="preload" 
     href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap"
@@ -22,9 +19,7 @@
   >
 </svelte:head>
 
-<!-- App Shell -->
 <div class="app-shell">
-  <!-- Enhanced Header Section -->
   <header class="header animate-slide-down">
     <div class="header-container">
       <div class="header-content">
@@ -37,14 +32,12 @@
     <div class="header-backdrop"></div>
   </header>
 
-  <!-- Main Content Section -->
   <main class="main-container animate-fade-in">
     <div class="content-wrapper">
       <slot />
     </div>
   </main>
 
-  <!-- Footer - Optional but adds completeness -->
   <footer class="footer">
     <div class="footer-container">
       <p class="footer-text">Files will be converted to Markdown and downloaded as a ZIP file</p>
@@ -53,6 +46,14 @@
 </div>
 
 <style>
+  /* Make sure html and body take full height */
+  :global(html), :global(body) {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
   /* App Shell */
   .app-shell {
     min-height: 100vh;
@@ -60,10 +61,30 @@
     grid-template-rows: auto 1fr auto;
     background: var(--gradient-primary);
     background-size: 200% 200%;
+    background-attachment: fixed;
     animation: gradient-shift 15s ease infinite;
+    position: relative;
+    overflow-x: hidden;
   }
 
-  /* Enhanced Header Styles */
+  /* Main Container */
+  .main-container {
+    width: 100%;
+    padding: var(--spacing-xl) var(--spacing-lg);
+    position: relative;
+    z-index: var(--z-elevate);
+    display: flex;
+    justify-content: center;
+  }
+
+  .content-wrapper {
+    width: 100%;
+    max-width: var(--content-width-lg);
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* Header */
   .header {
     position: relative;
     z-index: var(--z-sticky);
@@ -98,37 +119,7 @@
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
-  .icon {
-    font-size: 1.2em;
-    display: inline-block;
-    transform-origin: center;
-    animation: bounce 2s infinite var(--transition-timing-bounce);
-  }
-
-  .header-backdrop {
-    position: absolute;
-    inset: 0;
-    background: var(--gradient-primary);
-    opacity: 0.1;
-    z-index: -1;
-  }
-
-  /* Main Content Styles */
-  .main-container {
-    width: 100%;
-    margin: 0 auto;
-    padding: var(--spacing-xl) var(--spacing-md);
-    position: relative;
-    z-index: var(--z-elevate);
-  }
-
-  .content-wrapper {
-    max-width: var(--content-width-lg);
-    margin: 0 auto;
-    position: relative;
-  }
-
-  /* Footer Styles */
+  /* Footer */
   .footer {
     padding: var(--spacing-lg) var(--spacing-md);
     text-align: center;
@@ -148,64 +139,22 @@
     margin: 0;
   }
 
-  /* Gradient Animation */
   @keyframes gradient-shift {
-    0% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
-    100% {
-      background-position: 0% 50%;
-    }
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
 
-  /* Responsive Styles */
-  @media (max-width: 1024px) {
-    .site-title {
-      font-size: var(--font-size-xl);
-    }
-  }
-
+  /* Responsive */
   @media (max-width: 768px) {
-    .header {
-      padding: var(--spacing-sm) 0;
-    }
-
     .main-container {
-      padding: var(--spacing-lg) var(--spacing-sm);
-    }
-
-    .site-title {
-      font-size: var(--font-size-lg);
+      padding: var(--spacing-lg) var(--spacing-md);
     }
   }
 
   @media (max-width: 640px) {
-    .site-title {
-      flex-direction: column;
-      gap: var(--spacing-2xs);
-    }
-
     .main-container {
-      padding: var(--spacing-md) var(--spacing-xs);
-    }
-  }
-
-  /* Print Styles */
-  @media print {
-    .app-shell {
-      background: none;
-    }
-
-    .header {
-      background: none;
-      border-bottom: 1px solid #ddd;
-    }
-
-    .site-title {
-      color: var(--color-text-primary);
+      padding: var(--spacing-md);
     }
   }
 </style>

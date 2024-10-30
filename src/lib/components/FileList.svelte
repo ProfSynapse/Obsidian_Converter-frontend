@@ -299,14 +299,16 @@
 </div>
 
 <style>
-  /* FileList Container */
+ /* FileList Container */
 .file-list-container {
   width: 100%;
+  max-width: 100%;
   background: var(--color-surface);
   border-radius: var(--rounded-lg);
   padding: var(--spacing-lg);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 /* Header Section */
@@ -317,6 +319,8 @@
   padding-bottom: var(--spacing-md);
   border-bottom: 1px solid var(--color-background-secondary);
   margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
 }
 
 .section-title {
@@ -327,6 +331,8 @@
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .file-count {
@@ -336,6 +342,7 @@
   padding: 2px var(--spacing-xs);
   border-radius: var(--rounded-full);
   margin-left: var(--spacing-xs);
+  white-space: nowrap;
 }
 
 /* Actions Group */
@@ -343,6 +350,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  flex-wrap: wrap;
 }
 
 /* File List */
@@ -353,6 +361,9 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* File Card */
@@ -362,6 +373,7 @@
   border-radius: var(--rounded-lg);
   overflow: hidden;
   transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+  width: 100%;
 }
 
 .file-card:hover {
@@ -376,6 +388,8 @@
   gap: var(--spacing-md);
   padding: var(--spacing-md);
   position: relative;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 /* Checkbox Styling */
@@ -384,6 +398,7 @@
   align-items: center;
   gap: var(--spacing-xs);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .checkbox-input {
@@ -402,6 +417,7 @@
   background: var(--color-background-primary);
   transition: all var(--transition-duration-normal) var(--transition-timing-ease);
   position: relative;
+  flex-shrink: 0;
 }
 
 .checkbox-input:checked + .checkbox-custom {
@@ -439,12 +455,15 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2xs);
+  overflow: hidden;
 }
 
 .file-name-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .file-name {
@@ -453,11 +472,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
 
 .file-size {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Status Badge */
@@ -471,10 +494,13 @@
   font-weight: var(--font-weight-medium);
   background: var(--color-background-secondary);
   color: var(--color-text-secondary);
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .status-badge .icon {
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .status-badge.is-pending {
@@ -506,6 +532,7 @@
   cursor: pointer;
   opacity: 0;
   transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+  flex-shrink: 0;
 }
 
 .file-card:hover .remove-button {
@@ -527,6 +554,11 @@
   text-align: center;
   background: var(--color-background-secondary);
   border-radius: var(--rounded-lg);
+  width: 100%;
+}
+
+.empty-content {
+  max-width: 100%;
 }
 
 .empty-icon {
@@ -554,19 +586,39 @@
   color: var(--color-error);
   font-size: var(--font-size-sm);
   border-top: 1px solid var(--color-error);
+  word-break: break-word;
+}
+
+/* Progress Bar */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--color-background-secondary);
+  border-radius: var(--rounded-full);
+  overflow: hidden;
+  margin-top: var(--spacing-2xs);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--color-prime);
+  transition: width var(--transition-duration-normal) var(--transition-timing-ease);
 }
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
+  .file-list-container {
+    padding: var(--spacing-md);
+  }
+
   .section-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--spacing-sm);
   }
 
   .actions-group {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   .file-card-content {
@@ -576,16 +628,27 @@
 
 @media (max-width: 640px) {
   .file-list-container {
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
   }
 
   .file-card-content {
+    flex-direction: row;
     flex-wrap: wrap;
     gap: var(--spacing-xs);
   }
 
   .file-details {
-    width: 100%;
+    width: calc(100% - 80px);
+    order: 0;
+  }
+
+  .file-icon-wrapper {
+    order: 1;
+    width: 32px;
+    height: 32px;
+  }
+
+  .checkbox-wrapper {
     order: 2;
   }
 
@@ -594,6 +657,48 @@
     top: var(--spacing-sm);
     right: var(--spacing-sm);
     opacity: 1;
+  }
+
+  .file-name-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-2xs);
+  }
+
+  .status-badge {
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* High Contrast & Accessibility */
+@media (prefers-contrast: high) {
+  .file-card {
+    border-width: 2px;
+  }
+
+  .status-badge {
+    border: 1px solid currentColor;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .file-card,
+  .remove-button,
+  .checkbox-custom {
+    transition: none;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .file-list-container {
+    border: 1px solid #000;
+    box-shadow: none;
+  }
+
+  .remove-button {
+    display: none;
   }
 }
 </style>
