@@ -24,8 +24,7 @@
 	"include": [
 	  "src/**/*.d.ts",
 	  "src/**/*.js",
-	  "src/**/*.svelte",
-	  "src/lib/components/FileUploader"
+	  "src/**/*.svelte"
 	]
   }
   

@@ -1,7 +1,9 @@
+<!-- src/lib/components/ObsidianNoteConverter -->
+
 <script>
   import { onMount } from 'svelte';
   import { fade, slide } from 'svelte/transition';
-  import FileUploader from './FileUploader/FileUploader.svelte';
+  import FileUploader from './FileUploader.svelte';
   import ConversionStatus from './ConversionStatus.svelte';
   import ResultDisplay from './ResultDisplay.svelte';
   import { apiKey } from '$lib/stores/apiKey.js';

@@ -4,6 +4,7 @@
   import { fade, fly } from 'svelte/transition';
   import { apiKey } from '$lib/stores/apiKey';
   import { files } from '$lib/stores/files';
+  import Container from './common/Container.svelte';
   
   let apiKeyInput = '';
   let isVisible = false;
@@ -24,12 +25,10 @@
   
   // Validation function
   function validateApiKey(key) {
-    // Only validate if API key is required
     if (!apiKeyRequired) return true;
-    return key && key.length >= 32;
+    return key;
   }
   
-  // Handle input changes
   function handleInput(event) {
     const value = event.target.value;
     isDirty = true;
@@ -45,12 +44,10 @@
     }
   }
   
-  // Toggle password visibility
   function toggleVisibility() {
     isVisible = !isVisible;
   }
   
-  // Initialize from localStorage
   onMount(() => {
     const storedApiKey = localStorage.getItem('apiKey');
     if (storedApiKey) {
@@ -63,24 +60,11 @@
 </script>
 
 {#if apiKeyRequired}
-  <div
-    class="card api-key-card animate-fade-in"
-    class:is-valid={isValid}
-    class:is-invalid={isDirty && !isValid}
-    in:fade
+  <Container
+    title="OpenAI API Key Required"
+    subtitle="An OpenAI API key is required for transcribing audio and video files. Text-based files do not require an API key."
   >
-    <div class="card-header">
-      <h2 class="section-title">
-        <span class="icon">🔑</span>
-        OpenAI API Key Required
-      </h2>
-    </div>
-
     <div class="explanation-text">
-      <p>
-        An OpenAI API key is required for transcribing audio and video files.
-        Text-based files do not require an API key.
-      </p>
       <p class="file-types">
         Required for: <span class="highlight">Audio files (.mp3, .wav, .ogg)</span> and 
         <span class="highlight">Video files (.mp4, .mov, .avi, .webm)</span>
@@ -89,31 +73,17 @@
 
     <div class="input-container" class:is-focused={isFocused}>
       <div class="input-wrapper">
-        {#if isVisible}
-          <input
-            type="text"
-            bind:value={apiKeyInput}
-            on:input={handleInput}
-            on:focus={() => isFocused = true}
-            on:blur={() => isFocused = false}
-            placeholder="Enter your OpenAI API key"
-            class="input"
-            class:is-valid={isValid}
-            class:is-invalid={isDirty && !isValid}
-          />
-        {:else}
-          <input
-            type="password"
-            bind:value={apiKeyInput}
-            on:input={handleInput}
-            on:focus={() => isFocused = true}
-            on:blur={() => isFocused = false}
-            placeholder="Enter your OpenAI API key"
-            class="input"
-            class:is-valid={isValid}
-            class:is-invalid={isDirty && !isValid}
-          />
-        {/if}
+        <input
+          type={isVisible ? "text" : "password"}
+          bind:value={apiKeyInput}
+          on:input={handleInput}
+          on:focus={() => isFocused = true}
+          on:blur={() => isFocused = false}
+          placeholder="Enter your OpenAI API key"
+          class="input"
+          class:is-valid={isValid}
+          class:is-invalid={isDirty && !isValid}
+        />
         <button
           type="button"
           class="visibility-toggle"
@@ -153,33 +123,14 @@
         </span>
       </p>
     </div>
-  </div>
+  </Container>
 {/if}
 
 <style>
-  .api-key-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-  }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-  }
-
-  .section-title {
-    font-size: var(--font-size-lg);
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-  }
-
   .explanation-text {
     font-size: var(--font-size-sm);
     color: var(--color-text-light);
+    margin-bottom: var(--spacing-md);
   }
 
   .file-types {
@@ -188,11 +139,12 @@
 
   .highlight {
     color: var(--color-prime);
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
   }
 
   .input-container {
     width: 100%;
+    margin-bottom: var(--spacing-md);
   }
 
   .input-wrapper {
@@ -203,7 +155,20 @@
 
   .input {
     width: 100%;
+    padding: var(--spacing-sm) var(--spacing-lg);
     padding-right: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    font-size: var(--font-size-base);
+    transition: all var(--transition-duration-normal);
+    background: var(--color-background);
+    color: var(--color-text);
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--color-prime);
+    box-shadow: 0 0 0 2px rgba(0, 169, 157, 0.1);
   }
 
   .input.is-valid {
@@ -216,7 +181,7 @@
 
   .visibility-toggle {
     position: absolute;
-    right: var(--spacing-xs);
+    right: var(--spacing-sm);
     top: 50%;
     transform: translateY(-50%);
     background: none;
@@ -224,6 +189,7 @@
     padding: var(--spacing-xs);
     cursor: pointer;
     color: var(--color-text-light);
+    transition: color var(--transition-duration-normal);
   }
 
   .visibility-toggle:hover {
@@ -234,9 +200,6 @@
     margin-top: var(--spacing-xs);
     color: var(--color-error);
     font-size: var(--font-size-sm);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
   }
 
   .help-text {
@@ -257,23 +220,13 @@
     display: block;
     margin-top: var(--spacing-xs);
     font-size: var(--font-size-xs);
-    color: var(--color-text-light);
     opacity: 0.8;
   }
 
   @media (max-width: 640px) {
-    .api-key-card {
-      gap: var(--spacing-sm);
-    }
-
-    .section-title {
-      font-size: var(--font-size-base);
-    }
-
-    .file-types {
-      display: flex;
-      flex-direction: column;
-      gap: var(--spacing-xs);
+    .input {
+      font-size: var(--font-size-sm);
+      padding: var(--spacing-xs) var(--spacing-md);
     }
   }
 </style>

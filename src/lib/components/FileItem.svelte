@@ -1,31 +1,40 @@
+<!-- src/lib/components/FileItem.svelte -->
 <script>
   import { createEventDispatcher } from 'svelte';
   import { getFileIcon } from '$lib/utils/iconUtils';
+  import { conversionStatus } from '$lib/stores/conversionStatus';
+  import { onDestroy } from 'svelte';
 
   export let file;
-  export let actionLabel;
-  export let onAction;
   export let statusColor = 'var(--color-text)';
-  export let disabled = false;
 
   const dispatch = createEventDispatcher();
 
+  /**
+   * Dispatches an action event to parent components
+   */
   function handleAction() {
-    if (onAction) {
-      onAction(file);
-      dispatch('action', { file });
-    }
+    dispatch('action', { file });
   }
 
-  let icon;
+  // Subscribe to conversionStatus to display any ongoing status
+  let currentConversionStatus;
+  const unsubscribe = conversionStatus.subscribe(value => {
+    currentConversionStatus = value;
+  });
 
-  $: icon = getFileIcon(file.type);
+  onDestroy(() => {
+    unsubscribe();
+  });
+
+  // Determine if the file is currently being processed
+  $: isProcessing = currentConversionStatus.status === 'converting' && currentConversionStatus.currentFile === file.name;
 </script>
 
 <li class="file-item">
   <div class="file-info">
-    {#if icon}
-      <span class="file-icon" aria-hidden="true">{icon}</span>
+    {#if file.icon}
+      <span class="file-icon" aria-hidden="true">{file.icon}</span>
     {/if}
     <div class="file-details">
       <span class="file-name">{file.name}</span>
@@ -39,7 +48,7 @@
   <button
     class="action-button"
     on:click={handleAction}
-    disabled={disabled}
+    disabled={file.status === 'converting'}
     aria-label="Remove File"
   >
     <span class="icon-button">✖️</span>

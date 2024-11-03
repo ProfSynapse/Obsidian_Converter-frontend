@@ -20,116 +20,93 @@
 </svelte:head>
 
 <div class="app-shell">
-  <header class="header animate-slide-down">
-    <div class="header-container">
-      <div class="header-content">
-        <h1 class="site-title">
-          <span class="icon">📝</span>
-          Obsidian Note Converter
-        </h1>
-      </div>
+  <!-- Header -->
+  <header class="header animate-slide-in">
+    <div class="flex items-center justify-center">
+      <h1 class="header-title">
+        <span class="icon">📝</span>
+        <span>Obsidian Note Converter</span>
+      </h1>
     </div>
-    <div class="header-backdrop"></div>
   </header>
 
-  <main class="main-container animate-fade-in">
-    <div class="content-wrapper">
+  <!-- Main Content -->
+  <main class="main animate-fade-in">
+    <div class="content-area">
       <slot />
     </div>
   </main>
 
+  <!-- Footer -->
   <footer class="footer">
-    <div class="footer-container">
-      <p class="footer-text">Files will be converted to Markdown and downloaded as a ZIP file</p>
-    </div>
+    <p class="footer-text text-center">
+      Files will be converted to Markdown and downloaded as a ZIP file
+    </p>
   </footer>
 </div>
 
 <style>
-  /* Make sure html and body take full height */
-  :global(html), :global(body) {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-  }
-
   /* App Shell */
   .app-shell {
-    min-height: 100vh;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    background: var(--gradient-primary);
-    background-size: 200% 200%;
-    background-attachment: fixed;
-    animation: gradient-shift 15s ease infinite;
-    position: relative;
-    overflow-x: hidden;
-  }
-
-  /* Main Container */
-  .main-container {
-    width: 100%;
-    padding: var(--spacing-xl) var(--spacing-lg);
-    position: relative;
-    z-index: var(--z-elevate);
     display: flex;
-    justify-content: center;
-  }
-
-  .content-wrapper {
+    flex-direction: column;
+    min-height: 100vh;
     width: 100%;
-    max-width: var(--content-width-lg);
-    margin: 0 auto;
-    position: relative;
+    background: linear-gradient(135deg, var(--color-prime), var(--color-second));
+    padding: var(--spacing-xl);
+    box-sizing: border-box;
+    align-items: center;
+    gap: var(--spacing-xl);
   }
 
-  /* Header */
+  /* Header Styles */
   .header {
     position: relative;
-    z-index: var(--z-sticky);
-    padding: var(--spacing-md) 0;
-    background-color: rgba(0, 169, 157, 0.95);
+    background-color: rgba(var(--color-prime), 0.95);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: var(--spacing-md) 0;
+    width: 100%;
   }
 
-  .header-container {
-    max-width: var(--content-width-xl);
-    margin: 0 auto;
-    padding: 0 var(--spacing-md);
-  }
-
-  .header-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-
-  .site-title {
-    margin: 0;
+  .header-title {
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
     color: var(--color-text-on-dark);
-    text-align: center;
+    margin: 0;
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
-  /* Footer */
-  .footer {
-    padding: var(--spacing-lg) var(--spacing-md);
-    text-align: center;
+  .header-title .icon {
+    font-size: 1.2em;
+  }
+
+  /* Main Content Area */
+  .main {
+    flex: 1;
+    padding: var(--spacing-xl) 0;
     position: relative;
-    z-index: var(--z-elevate);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
   }
 
-  .footer-container {
+  .content-area {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    width: 100%;
     max-width: var(--content-width-lg);
-    margin: 0 auto;
+  }
+
+  /* Footer Styles */
+  .footer {
+    padding: var(--spacing-lg) 0;
+    position: relative;
+    width: 100%;
   }
 
   .footer-text {
@@ -139,22 +116,34 @@
     margin: 0;
   }
 
-  @keyframes gradient-shift {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-  }
-
-  /* Responsive */
+  /* Responsive Adjustments */
   @media (max-width: 768px) {
-    .main-container {
-      padding: var(--spacing-lg) var(--spacing-md);
+    .app-shell {
+      padding: var(--spacing-lg);
+      gap: var(--spacing-md);
+    }
+
+    .main {
+      padding: var(--spacing-lg) 0;
+    }
+
+    .content-area {
+      gap: var(--spacing-md);
     }
   }
 
   @media (max-width: 640px) {
-    .main-container {
+    .app-shell {
       padding: var(--spacing-md);
+      gap: var(--spacing-sm);
+    }
+
+    .header-title {
+      font-size: var(--font-size-xl);
+    }
+
+    .main {
+      padding: var(--spacing-md) 0;
     }
   }
 </style>

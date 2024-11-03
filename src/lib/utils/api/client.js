@@ -2,7 +2,6 @@
 
 import { ENDPOINTS } from './endpoints.js';
 import { conversionStatus } from '$lib/stores/conversionStatus.js';
-import JSZip from 'jszip';
 import FileSaver from 'file-saver';
 
 /**
@@ -10,13 +9,13 @@ import FileSaver from 'file-saver';
  */
 const CONFIG = {
   MAX_RETRIES: 3,
-  RETRY_DELAY: 1000,
+  RETRY_DELAY: 1000, // in milliseconds
   ZIP_COMPRESSION_LEVEL: 9,
   PROGRESS: {
     START: 0,
-    CONVERTING: 50,
-    ZIPPING: 75,
-    DOWNLOADING: 90,
+    CONVERTING: 25,
+    UPLOADING: 50,
+    DOWNLOADING: 75,
     COMPLETE: 100
   }
 };
@@ -25,6 +24,12 @@ const CONFIG = {
  * Custom error class for handling conversion-specific errors
  */
 class ConversionError extends Error {
+  /**
+   * Creates an instance of ConversionError.
+   * @param {string} message - Error message.
+   * @param {string} [code='CONVERSION_ERROR'] - Error code.
+   * @param {any} [details=null] - Additional error details.
+   */
   constructor(message, code = 'CONVERSION_ERROR', details = null) {
     super(message);
     this.name = 'ConversionError';
@@ -37,14 +42,22 @@ class ConversionError extends Error {
  * Validates and normalizes URLs
  */
 class UrlValidator {
+  /**
+   * Validates and normalizes a given URL.
+   * @param {string} url - The URL to validate.
+   * @returns {string} - The validated and normalized URL.
+   * @throws {ConversionError} - If validation fails.
+   */
   static validate(url) {
     try {
       if (!url) throw new Error('URL is required');
       
       // Remove whitespace and normalize
       url = url.trim();
+      
+      // Add https:// if missing
       if (!/^https?:\/\//i.test(url)) {
-        url = 'https://' + url.replace(/^\/\//, '');
+        url = 'https://' + url;
       }
       
       // Validate URL format
@@ -70,305 +83,211 @@ class UrlValidator {
  */
 class ConversionClient {
   /**
-   * Makes an authenticated API request with retry logic
+   * Makes an authenticated API request with retry logic and enhanced error handling.
+   * @param {string} endpoint - API endpoint.
+   * @param {Object} options - Fetch options.
+   * @param {number} [retries=CONFIG.MAX_RETRIES] - Number of retries left.
+   * @returns {Promise<any>} - The API response data.
+   * @throws {ConversionError} - If the request fails after retries.
    */
-  static async makeRequest(endpoint, options, apiKey, retries = CONFIG.MAX_RETRIES) {
+  static async makeRequest(endpoint, options, retries = CONFIG.MAX_RETRIES) {
     try {
-      const response = await fetch(endpoint, {
-        ...options,
-        headers: {
-          ...options.headers,
-          'X-API-Key': apiKey
-        }
+      // Log request attempt
+      console.log('Making API request:', {
+        endpoint,
+        method: options.method,
+        retries
       });
 
-      const data = await response.json();
+      // Ensure we have valid options
+      if (!options || typeof options !== 'object') {
+        throw new Error('Invalid request options');
+      }
+
+      // Make the request
+      const response = await fetch(endpoint, {
+        ...options
+      });
+
+      // Log response status
+      console.log('Response status:', response.status);
 
       if (!response.ok) {
+        let errorText;
+        try {
+          errorText = await response.text();
+        } catch (e) {
+          errorText = 'Failed to read error response';
+        }
+        
         throw new ConversionError(
-          data.error?.message || `Request failed with status ${response.status}`,
-          'API_ERROR',
-          data.error
+          `Request failed with status ${response.status}: ${errorText}`,
+          'API_ERROR'
         );
       }
 
-      if (!data.success) {
-        throw new ConversionError(
-          data.error?.message || 'Conversion failed',
-          'CONVERSION_ERROR',
-          data.error
-        );
+      // Handle different response types
+      const contentType = response.headers.get('Content-Type');
+      
+      if (contentType && (
+          contentType.includes('application/zip') || 
+          contentType.includes('application/octet-stream')
+      )) {
+          return await response.blob();
       }
 
-      return data;
+      // For JSON responses
+      try {
+          const data = await response.json();
+          if (!data.success) {
+              throw new ConversionError(
+                  data.error?.message || 'Conversion failed',
+                  'CONVERSION_ERROR',
+                  data.error
+              );
+          }
+          return data;
+      } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          throw new ConversionError(
+              'Failed to parse server response',
+              'PARSE_ERROR',
+              parseError
+          );
+      }
+
     } catch (error) {
+      // Log the full error for debugging
+      console.error('Request error:', {
+        error,
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name
+      });
+
+      // Handle retries
       if (retries > 0 && this.shouldRetry(error)) {
+        console.log(`Retrying request (${retries} attempts left)...`);
         await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
-        return this.makeRequest(endpoint, options, apiKey, retries - 1);
+        return this.makeRequest(endpoint, options, retries - 1);
       }
-      throw this.normalizeError(error);
+
+      // If it's already a ConversionError, throw it directly
+      if (error instanceof ConversionError) {
+        throw error;
+      }
+
+      // Create a new ConversionError with a safe error message
+      const errorMessage = error?.message || 'An unknown error occurred';
+      throw new ConversionError(errorMessage, 'REQUEST_ERROR', error);
     }
   }
 
   /**
-   * Determines if request should be retried
+   * Determines if a request should be retried based on the error.
+   * @param {Error} error - The error to check.
+   * @returns {boolean} - Whether to retry the request.
    */
   static shouldRetry(error) {
+    // Define retryable error codes
     const retryableCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'];
-    return retryableCodes.includes(error.code) || error.name === 'NetworkError';
+    
+    // Network errors or specific error codes should be retried
+    return (
+        error.name === 'NetworkError' ||
+        retryableCodes.includes(error.code) ||
+        (error instanceof ConversionError && error.code === 'API_ERROR')
+    );
   }
 
   /**
-   * Normalizes error format
+   * Normalizes error format with safe handling of undefined values.
+   * @param {Error} error - The error to normalize.
+   * @returns {ConversionError} - Normalized error.
    */
   static normalizeError(error) {
-    if (error instanceof ConversionError) return error;
-    return new ConversionError(error.message, 'REQUEST_ERROR', error);
-  }
-
-  /**
-   * Converts a URL to markdown
-   */
-  static async convertUrl(urlObj, apiKey) {
-    if (!urlObj?.url) {
-      throw new ConversionError('Invalid URL object', 'INVALID_INPUT');
+    // Already a ConversionError
+    if (error instanceof ConversionError) {
+        return error;
     }
 
-    const validatedUrl = UrlValidator.validate(urlObj.url);
-    console.log(`Converting URL: ${validatedUrl}`);
-
-    const result = await this.makeRequest(
-      ENDPOINTS.CONVERT_URL,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: validatedUrl })
-      },
-      apiKey
-    );
-
-    return {
-      name: `${urlObj.name || new URL(validatedUrl).hostname}.md`,
-      content: result.content,
-      images: result.images || []
-    };
-  }
-
-  /**
-   * Converts a parent URL and its children
-   */
-  /**
- * Modified section of client.js for parent URL handling
- */
-  static async convertParentUrl(parentUrlObj, apiKey) {
+    // Handle different error types safely
+    let message = 'An unknown error occurred';
+    let code = 'UNKNOWN_ERROR';
+    
     try {
-      const url = parentUrlObj.url || parentUrlObj.parentUrl;
-      const validatedUrl = UrlValidator.validate(url);
-      
-      console.log(`Converting Parent URL: ${validatedUrl}`);
-
-      // Modified request body structure
-      const body = {
-        url: validatedUrl,
-        parentUrl: validatedUrl, // Include both for backwards compatibility
-        options: {
-          includeImages: true,
-          maxDepth: Number.MAX_SAFE_INTEGER // No depth limit
+        if (error instanceof Error) {
+            message = error.message;
+            code = 'JS_ERROR';
+        } else if (typeof error === 'string') {
+            message = error;
+            code = 'STRING_ERROR';
+        } else if (error && typeof error === 'object') {
+            message = error.message || JSON.stringify(error);
+            code = 'OBJECT_ERROR';
         }
-      };
-
-      console.log('Sending request with body:', body);
-
-      const result = await this.makeRequest(
-        ENDPOINTS.CONVERT_PARENT_URL,
-        {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
-          },
-          body: JSON.stringify(body)
-        },
-        apiKey
-      );
-
-      // Add error check for empty result
-      if (!result || !result.content) {
-        throw new ConversionError('Empty response from server');
-      }
-
-      return {
-        name: `${parentUrlObj.name || new URL(validatedUrl).hostname}.md`,
-        content: result.content,
-        images: result.images || [],
-        childUrls: result.childUrls || []
-      };
-
-    } catch (error) {
-      console.error('Parent URL conversion error:', error);
-      throw new ConversionError(
-        `Parent URL conversion failed: ${error.message}`,
-        'PARENT_URL_ERROR',
-        error
-      );
+    } catch (e) {
+        console.error('Error while normalizing error:', e);
     }
+
+    return new ConversionError(message, code, error);
   }
 
   /**
-   * Converts a file to markdown
+   * Batch converts multiple items and downloads the consolidated ZIP.
+   * @param {Array<Object>} batchItems - Array of items to convert.
+   * @param {string} apiKey - API key for authentication.
+   * @returns {Promise<Object>} - The API response data.
+   * @throws {ConversionError} - If the conversion fails.
    */
-  static async convertFile(fileObj, apiKey) {
-    if (!fileObj?.file) {
-      throw new ConversionError('Invalid file object', 'INVALID_INPUT');
-    }
-
-    const formData = new FormData();
-    formData.append('file', fileObj.file);
-    formData.append('fileType', fileObj.file.name.split('.').pop().toLowerCase());
-
-    console.log(`Converting file: ${fileObj.file.name}`);
-
-    const result = await this.makeRequest(
-      ENDPOINTS.CONVERT,
-      {
-        method: 'POST',
-        body: formData
+  static async convertFiles(batchItems, apiKey) {
+    const endpoint = ENDPOINTS.CONVERT;
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
       },
-      apiKey
-    );
-
-    return {
-      name: fileObj.file.name.replace(/\.[^/.]+$/, '.md'),
-      content: result.content,
-      images: result.images || []
+      body: JSON.stringify({ items: batchItems })
     };
+    
+    return this.makeRequest(endpoint, options);
   }
 
   /**
-   * Creates a ZIP file from converted content
+   * Stops the ongoing conversion process.
+   * @returns {Promise<Object>} - The API response data.
+   * @throws {ConversionError} - If stopping the conversion fails.
    */
-  static async createZipFile(items) {
-    const zip = new JSZip();
-
-    for (const item of items) {
-      // Add markdown file
-      zip.file(item.name, item.content);
-
-      // Add images if present
-      if (item.images?.length > 0) {
-        const baseName = item.name.replace('.md', '');
-        const imagesFolder = zip.folder(`attachments/${baseName}`);
-
-        for (const image of item.images) {
-          try {
-            imagesFolder.file(image.name, image.data, { base64: true });
-          } catch (error) {
-            console.error(`Error processing image ${image.name}:`, error);
-          }
-        }
+  static async stopConversion() {
+    const endpoint = ENDPOINTS.STOP_CONVERSION;
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    }
-
-    return zip.generateAsync({
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: CONFIG.ZIP_COMPRESSION_LEVEL }
-    });
+    };
+    
+    return this.makeRequest(endpoint, options);
   }
 
   /**
-   * Updates conversion status and progress
+   * Downloads partial conversion results as a ZIP file.
+   * @returns {Promise<Blob>} - The ZIP file blob.
+   * @throws {ConversionError} - If downloading partial results fails.
    */
-  static updateStatus(status, progress, file = null) {
-    conversionStatus.setStatus(status);
-    conversionStatus.setProgress(progress);
-    if (file) conversionStatus.setCurrentFile(file);
-  }
-
-  /**
-   * Converts multiple items to markdown
-   */
-  static async convertFiles(items, apiKey, onProgress) {
-    if (!items?.length) {
-      throw new ConversionError('No items to convert', 'NO_ITEMS');
-    }
-
-    try {
-      console.log(`Starting conversion of ${items.length} items`);
-      this.updateStatus('converting', CONFIG.PROGRESS.START);
-      
-      const convertedItems = [];
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const progress = Math.round((i / items.length) * CONFIG.PROGRESS.CONVERTING);
-        
-        const itemName = this.getItemName(item);
-        this.updateStatus('converting', progress, itemName);
-        onProgress?.(progress);
-
-        const convertedItem = await this.convertItem(item, apiKey);
-        convertedItems.push(convertedItem);
+  static async downloadPartialResults() {
+    const endpoint = ENDPOINTS.DOWNLOAD_PARTIAL;
+    const options = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/zip'
       }
-
-      await this.finalizeConversion(convertedItems, onProgress);
-      
-      console.log('Conversion completed successfully');
-
-    } catch (error) {
-      console.error('Conversion error:', error);
-      this.updateStatus('error', CONFIG.PROGRESS.START);
-      conversionStatus.setError(error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Gets display name for an item
-   */
-  static getItemName(item) {
-    return item.name || 
-           item.url || 
-           item.parentUrl || 
-           item.file?.name || 
-           'Unknown';
-  }
-
-  /**
-   * Converts a single item based on its type
-   */
-  static async convertItem(item, apiKey) {
-    switch (item.type) {
-      case 'url':
-        return await this.convertUrl(item, apiKey);
-      case 'parentUrl':
-        return await this.convertParentUrl(item, apiKey);
-      case 'file':
-        return await this.convertFile(item, apiKey);
-      default:
-        throw new ConversionError(
-          `Unsupported item type: ${item.type}`,
-          'INVALID_TYPE'
-        );
-    }
-  }
-
-  /**
-   * Finalizes the conversion process
-   */
-  static async finalizeConversion(convertedItems, onProgress) {
-    this.updateStatus('creating_zip', CONFIG.PROGRESS.ZIPPING);
-    onProgress?.(CONFIG.PROGRESS.ZIPPING);
+    };
     
-    const zipBlob = await this.createZipFile(convertedItems);
-    
-    this.updateStatus('generating_download', CONFIG.PROGRESS.DOWNLOADING);
-    onProgress?.(CONFIG.PROGRESS.DOWNLOADING);
-    
-    FileSaver.saveAs(zipBlob, 'obsidian-vault.zip');
-    
-    this.updateStatus('completed', CONFIG.PROGRESS.COMPLETE);
-    onProgress?.(CONFIG.PROGRESS.COMPLETE);
+    return this.makeRequest(endpoint, options);
   }
 }
 
-export { ConversionClient as default, ConversionError };
+export default ConversionClient;
+export { ConversionError };

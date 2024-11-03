@@ -1,3 +1,4 @@
+<!-- src/lib/components/FileList.svelte -->
 <script>
   import { files } from '$lib/stores/files.js';
   import { getFileIcon } from '$lib/utils/iconUtils.js';
@@ -68,7 +69,7 @@
     console.log('Removing file:', id);
     files.removeFile(id);
     selectedFiles.delete(id);
-    selectedFiles = selectedFiles; // Trigger reactivity
+    selectedFiles = new Set(selectedFiles); // Trigger reactivity
   }
 
   /**
@@ -95,7 +96,8 @@
       video: '#F5A623',
       audio: '#BD10E0',
       url: '#50E3C2',
-      parentUrl: '#9013FE',
+      parenturl: '#9013FE',
+      youtube: '#FF0000', // Added color for YouTube
       default: '#B8B8B8'
     };
     return types[type] || types.default;
@@ -122,6 +124,8 @@
   function handleDragStart(e, id) {
     draggedId = id;
     isDragging = true;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
   }
 
   function handleDragOver(e, id) {
@@ -167,6 +171,7 @@
             on:change={handleSelectAll}
             id="select-all-checkbox"
             class="checkbox-input"
+            aria-label="Select All Files"
           />
           <span class="checkbox-custom"></span>
           <span class="checkbox-label">Select All</span>
@@ -177,6 +182,7 @@
             class="btn btn-danger btn-sm"
             on:click={removeSelectedFiles}
             transition:fade
+            aria-label={`Remove ${selectedFiles.size} selected file(s)`}
           >
             <span class="icon">🗑️</span>
             Remove ({selectedFiles.size})
@@ -210,6 +216,7 @@
                 checked={selectedFiles.has(file.id)}
                 on:change={() => toggleFileSelection(file.id)}
                 class="checkbox-input"
+                aria-label={`Select file ${file.name}`}
               />
               <span class="checkbox-custom"></span>
             </label>
@@ -224,50 +231,39 @@
               </span>
             </div>
 
-            <!-- File Details -->
+            <!-- File Details and Status -->
             <div class="file-details">
-              <div class="file-name-row">
+              <div class="file-name-status-row">
                 <span class="file-name">{file.name}</span>
-                {#if file.size}
-                  <span class="file-size">
-                    {formatFileSize(file.size)}
+                {#if file.status}
+                  <span class="status-badge {`is-${file.status}`}">
+                    {#if file.status === 'completed'}
+                      <span class="icon">✨</span>
+                    {:else if file.status === 'error'}
+                      <span class="icon">⚠️</span>
+                    {:else}
+                      <span class="icon">⏳</span> <!-- Updated emoji for 'converting' -->
+                    {/if}
+                    {file.status}
                   </span>
                 {/if}
               </div>
 
-              <div class="file-status-row">
-                <span 
-                  class="status-badge"
-                  class:is-completed={file.status === 'completed'}
-                  class:is-error={file.status === 'error'}
-                  class:is-pending={file.status === 'pending'}
-                >
-                  {#if file.status === 'completed'}
-                    <span class="icon">✨</span>
-                  {:else if file.status === 'error'}
-                    <span class="icon">⚠️</span>
-                  {:else}
-                    <span class="icon">⏳</span>
-                  {/if}
-                  {file.status}
-                </span>
-                
-                {#if file.progress !== undefined}
-                  <div class="progress-bar">
-                    <div 
-                      class="progress-fill"
-                      style="width: {file.progress}%"
-                    ></div>
-                  </div>
-                {/if}
-              </div>
+              {#if file.progress !== undefined}
+                <div class="progress-bar">
+                  <div 
+                    class="progress-fill"
+                    style="width: {file.progress}%"
+                  ></div>
+                </div>
+              {/if}
             </div>
 
             <!-- Action Buttons -->
             <button
               class="remove-button"
               on:click={() => removeFile(file.id)}
-              aria-label="Remove file"
+              aria-label={`Remove file ${file.name}`}
             >
               <span class="icon">✖️</span>
             </button>
@@ -278,6 +274,8 @@
             <div 
               class="error-message"
               transition:slide|local
+              role="alert"
+              aria-live="assertive"
             >
               {file.error}
             </div>
@@ -299,406 +297,364 @@
 </div>
 
 <style>
- /* FileList Container */
-.file-list-container {
-  width: 100%;
-  max-width: 100%;
-  background: var(--color-surface);
-  border-radius: var(--rounded-lg);
-  padding: var(--spacing-lg);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-/* Header Section */
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: var(--spacing-md);
-  border-bottom: 1px solid var(--color-background-secondary);
-  margin-bottom: var(--spacing-lg);
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-  min-width: 0;
-  flex-shrink: 1;
-}
-
-.file-count {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  background: var(--color-background-secondary);
-  padding: 2px var(--spacing-xs);
-  border-radius: var(--rounded-full);
-  margin-left: var(--spacing-xs);
-  white-space: nowrap;
-}
-
-/* Actions Group */
-.actions-group {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  flex-wrap: wrap;
-}
-
-/* File List */
-.file-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  width: 100%;
-  max-width: 100%;
-  overflow: hidden;
-}
-
-/* File Card */
-.file-card {
-  background: var(--color-background-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--rounded-lg);
-  overflow: hidden;
-  transition: all var(--transition-duration-normal) var(--transition-timing-ease);
-  width: 100%;
-}
-
-.file-card:hover {
-  border-color: var(--color-prime);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-
-.file-card-content {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  position: relative;
-  min-width: 0;
-  flex-wrap: nowrap;
-}
-
-/* Checkbox Styling */
-.checkbox-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.checkbox-input {
-  position: absolute;
-  opacity: 0;
-  cursor: pointer;
-  height: 0;
-  width: 0;
-}
-
-.checkbox-custom {
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--color-border);
-  border-radius: var(--rounded-sm);
-  background: var(--color-background-primary);
-  transition: all var(--transition-duration-normal) var(--transition-timing-ease);
-  position: relative;
-  flex-shrink: 0;
-}
-
-.checkbox-input:checked + .checkbox-custom {
-  background: var(--color-prime);
-  border-color: var(--color-prime);
-}
-
-.checkbox-input:checked + .checkbox-custom::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
-  font-size: 12px;
-}
-
-/* File Icon */
-.file-icon-wrapper {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--rounded-md);
-  background: var(--color-background-secondary);
-  color: var(--color-prime);
-  flex-shrink: 0;
-}
-
-/* File Details */
-.file-details {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2xs);
-  overflow: hidden;
-}
-
-.file-name-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  min-width: 0;
-  flex-wrap: nowrap;
-}
-
-.file-name {
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-  flex: 1;
-}
-
-.file-size {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-/* Status Badge */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2xs);
-  padding: 4px var(--spacing-xs);
-  border-radius: var(--rounded-full);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  background: var(--color-background-secondary);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.status-badge .icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.status-badge.is-pending {
-  background: var(--color-warning-light);
-  color: var(--color-warning);
-}
-
-.status-badge.is-completed {
-  background: var(--color-success-light);
-  color: var(--color-success);
-}
-
-.status-badge.is-error {
-  background: var(--color-error-light);
-  color: var(--color-error);
-}
-
-/* Remove Button */
-.remove-button {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: none;
-  border-radius: var(--rounded-full);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  opacity: 0;
-  transition: all var(--transition-duration-normal) var(--transition-timing-ease);
-  flex-shrink: 0;
-}
-
-.file-card:hover .remove-button {
-  opacity: 1;
-}
-
-.remove-button:hover {
-  background: var(--color-error-light);
-  color: var(--color-error);
-}
-
-/* Empty State */
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  padding: var(--spacing-xl);
-  text-align: center;
-  background: var(--color-background-secondary);
-  border-radius: var(--rounded-lg);
-  width: 100%;
-}
-
-.empty-content {
-  max-width: 100%;
-}
-
-.empty-icon {
-  font-size: var(--font-size-3xl);
-  margin-bottom: var(--spacing-md);
-  color: var(--color-text-secondary);
-}
-
-.empty-text {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
-  margin: 0 0 var(--spacing-xs);
-}
-
-.empty-subtext {
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-/* Error Message */
-.error-message {
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-error-light);
-  color: var(--color-error);
-  font-size: var(--font-size-sm);
-  border-top: 1px solid var(--color-error);
-  word-break: break-word;
-}
-
-/* Progress Bar */
-.progress-bar {
-  width: 100%;
-  height: 4px;
-  background: var(--color-background-secondary);
-  border-radius: var(--rounded-full);
-  overflow: hidden;
-  margin-top: var(--spacing-2xs);
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--color-prime);
-  transition: width var(--transition-duration-normal) var(--transition-timing-ease);
-}
-
-/* Responsive Adjustments */
-@media (max-width: 768px) {
+  /* FileList Container */
   .file-list-container {
-    padding: var(--spacing-md);
-  }
-
-  .section-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .actions-group {
     width: 100%;
-    justify-content: flex-start;
+    max-width: 600px; /* Match FileUploader's max-width */
+    background: var(--color-surface);
+    border-radius: var(--rounded-lg);
+    padding: var(--spacing-lg);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
   }
 
-  .file-card-content {
+  /* Header Section */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--color-background-secondary);
+    margin-bottom: var(--spacing-lg);
+    flex-wrap: wrap;
     gap: var(--spacing-sm);
   }
-}
 
-@media (max-width: 640px) {
-  .file-list-container {
-    padding: var(--spacing-sm);
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .file-count {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    background: var(--color-background-secondary);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--rounded-full);
+    margin-left: var(--spacing-xs);
+    white-space: nowrap;
+  }
+
+  /* Actions Group */
+  .actions-group {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+  }
+
+  /* File List Section */
+  .file-list {
+    width: 100%;
+    max-width: 100%;
+    margin-top: var(--spacing-md);
+  }
+
+  /* File Card */
+  .file-card {
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-background-secondary);
+    border-radius: var(--rounded-lg);
+    overflow: hidden;
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    width: 100%;
+  }
+
+  .file-card:hover {
+    border-color: var(--color-prime);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .file-card.is-completed {
+    border-left: 5px solid var(--color-success);
+  }
+
+  .file-card.is-error {
+    border-left: 5px solid var(--color-error);
+  }
+
+  .file-card.is-dragging {
+    opacity: 0.5;
+    border: 2px dashed var(--color-prime);
   }
 
   .file-card-content {
-    flex-direction: row;
-    flex-wrap: wrap;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    position: relative;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  /* Checkbox Styling */
+  .checkbox-wrapper {
+    display: flex;
+    align-items: center;
     gap: var(--spacing-xs);
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
   }
 
-  .file-details {
-    width: calc(100% - 80px);
-    order: 0;
+  .checkbox-input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
   }
 
+  .checkbox-custom {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--rounded-sm);
+    background: var(--color-background-primary);
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .checkbox-input:checked + .checkbox-custom {
+    background: var(--color-prime);
+    border-color: var(--color-prime);
+  }
+
+  .checkbox-input:checked + .checkbox-custom::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+  }
+
+  /* File Icon */
   .file-icon-wrapper {
-    order: 1;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--rounded-md);
+    background: var(--color-background-secondary);
+    color: var(--color-prime);
+    flex-shrink: 0;
+  }
+
+  /* File Details */
+  .file-details {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xs);
+    overflow: hidden;
+  }
+
+  .file-name-status-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .file-name {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
+    padding: 4px var(--spacing-xs);
+    border-radius: var(--rounded-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    background: var(--color-background-secondary);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .status-badge .icon {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .status-badge.is-pending {
+    background: var(--color-warning-light);
+    color: var(--color-warning);
+  }
+
+  .status-badge.is-completed {
+    background: var(--color-success-light);
+    color: var(--color-success);
+  }
+
+  .status-badge.is-error {
+    background: var(--color-error-light);
+    color: var(--color-error);
+  }
+
+  /* Remove Button */
+  .remove-button {
     width: 32px;
     height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    border-radius: var(--rounded-full);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    opacity: 0;
+    transition: all var(--transition-duration-normal) var(--transition-timing-ease);
+    flex-shrink: 0;
   }
 
-  .checkbox-wrapper {
-    order: 2;
-  }
-
-  .remove-button {
-    position: absolute;
-    top: var(--spacing-sm);
-    right: var(--spacing-sm);
+  .file-card:hover .remove-button {
     opacity: 1;
   }
 
-  .file-name-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-2xs);
+  .remove-button:hover {
+    background: var(--color-error-light);
+    color: var(--color-error);
   }
 
-  .status-badge {
-    font-size: var(--font-size-xs);
-  }
-}
-
-/* High Contrast & Accessibility */
-@media (prefers-contrast: high) {
-  .file-card {
-    border-width: 2px;
+  /* Accessibility Enhancements */
+  .checkbox-input:focus + .checkbox-custom,
+  .remove-button:focus {
+    outline: 2px solid var(--color-prime);
+    outline-offset: 2px;
   }
 
-  .status-badge {
-    border: 1px solid currentColor;
-  }
-}
-
-/* Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  .file-card,
-  .remove-button,
-  .checkbox-custom {
-    transition: none;
-  }
-}
-
-/* Print Styles */
-@media print {
-  .file-list-container {
-    border: 1px solid #000;
-    box-shadow: none;
+  /* Error Message */
+  .error-message {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-error-light);
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+    border-top: 1px solid var(--color-error);
+    word-break: break-word;
   }
 
-  .remove-button {
-    display: none;
+  /* Progress Bar */
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--color-background-secondary);
+    border-radius: var(--rounded-full);
+    overflow: hidden;
+    margin-top: var(--spacing-2xs);
   }
-}
+
+  .progress-fill {
+    height: 100%;
+    background: var(--color-prime);
+    transition: width var(--transition-duration-normal) var(--transition-timing-ease);
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: var(--spacing-xl);
+    color: var(--color-text-secondary);
+  }
+
+  .empty-content {
+    max-width: 100%;
+  }
+
+  .empty-icon {
+    font-size: var(--font-size-4xl);
+    margin-bottom: var(--spacing-md);
+    display: inline-block;
+    color: var(--color-text-secondary);
+  }
+
+  .empty-text {
+    font-size: var(--font-size-lg);
+    margin: 0 0 var(--spacing-xs);
+    color: var(--color-text-primary);
+  }
+
+  .empty-subtext {
+    margin: 0;
+    font-size: var(--font-size-base);
+  }
+
+  /* High Contrast Mode */
+  @media (prefers-contrast: high) {
+    .file-card {
+      border-width: 2px;
+    }
+
+    .status-badge {
+      border: 1px solid currentColor;
+    }
+
+    .checkbox-custom {
+      border: 2px solid currentColor;
+    }
+
+    .remove-button {
+      border: 2px solid currentColor;
+    }
+  }
+
+  /* Reduced Motion */
+  @media (prefers-reduced-motion: reduce) {
+    .file-card,
+    .remove-button,
+    .checkbox-custom,
+    .progress-fill {
+      transition: none;
+      transform: none;
+    }
+  }
+
+  /* Print Styles */
+  @media print {
+    .file-list-container {
+      border: 1px solid #000;
+      box-shadow: none;
+    }
+
+    .remove-button {
+      display: none;
+    }
+
+    .file-card {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .file-icon-wrapper {
+      border: 1px solid #000;
+    }
+
+    .status-badge {
+      border: 1px solid currentColor;
+    }
+  }
 </style>
