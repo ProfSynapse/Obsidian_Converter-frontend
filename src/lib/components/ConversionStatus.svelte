@@ -93,56 +93,46 @@
   /**
    * Handles starting the conversion process
    */
-  async function handleStartConversion() {
+   async function handleStartConversion() {
     if (!canStartConversion) return;
 
     try {
-      conversionStatus.setStatus('converting');
-      conversionStatus.setProgress(0);
+        conversionStatus.setStatus('converting');
+        conversionStatus.setProgress(0);
 
-      let resultBlob;
+        // Process each file
+        for (const file of $files) {
+            try {
+                conversionStatus.setCurrentFile(file.id);
+                files.updateFile(file.id, { status: 'converting' });
 
-      if ($files.length === 1) {
-        const file = $files[0];
-        const currentApiKey = $apiKey || '';
+                // Use the new convertItem method
+                const blob = await ConversionClient.convertItem(file, $apiKey);
 
-        if (file.file) {
-          // It's a file upload
-          resultBlob = await ConversionClient.convertFile(file.file, currentApiKey);
-        } else if (file.type.toLowerCase() === 'youtube') {
-          // It's a YouTube URL
-          resultBlob = await ConversionClient.convertYoutube(file.url, currentApiKey);
-        } else {
-          // It's a regular URL
-          resultBlob = await ConversionClient.convertUrl(file.url, currentApiKey);
+                // Handle successful conversion
+                files.updateFile(file.id, { 
+                    status: 'completed',
+                    blob: blob
+                });
+
+            } catch (error) {
+                console.error(`Error converting ${file.name}:`, error);
+                files.updateFile(file.id, { 
+                    status: 'error',
+                    error: error.message
+                });
+            }
         }
-      } else {
-        // Batch conversion
-        const batchItems = await prepareBatchItems();
-        resultBlob = await ConversionClient.convertBatch(batchItems, $apiKey);
-      }
 
-      // Handle the result blob (e.g., save the file or update the UI)
-      FileSaver.saveAs(resultBlob, 'conversion_result.zip');
+        conversionStatus.setStatus('completed');
+        conversionStatus.setProgress(100);
 
-      conversionStatus.setStatus('completed');
-      conversionStatus.setProgress(100);
-      showFeedback('Conversion completed successfully', 'success');
-
-    } catch (err) {
-      console.error('Conversion error:', err);
-
-      let errorMessage = 'An unexpected error occurred during conversion.';
-      if (err instanceof ConversionError) {
-        errorMessage = err.message;
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      }
-
-      conversionStatus.setError(errorMessage);
-      conversionStatus.setStatus('error');
+    } catch (error) {
+        console.error('Conversion error:', error);
+        conversionStatus.setError(error.message);
+        conversionStatus.setStatus('error');
     }
-  }
+}
 
   /**
    * Shows feedback message
@@ -160,7 +150,7 @@
     <!-- Status Display -->
     {#if status === 'converting'}
       <div class="status-info" in:fade>
-        <span class="icon">🕛</span>
+        <span class="icon">⚡</span>
         <span>Converting... {progress}%</span>
       </div>
       <div class="progress-bar">

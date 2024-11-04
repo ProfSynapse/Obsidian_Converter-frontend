@@ -9,8 +9,15 @@ import FileSaver from 'file-saver';
  */
 const CONFIG = {
   MAX_RETRIES: 3,
-  RETRY_DELAY: 1000, // in milliseconds
+  RETRY_DELAY: 1000,
   ZIP_COMPRESSION_LEVEL: 9,
+  ITEM_TYPES: {
+    FILE: 'file',
+    URL: 'url',
+    PARENT_URL: 'parent',
+    YOUTUBE: 'youtube',
+    BATCH: 'batch'
+  },
   PROGRESS: {
     START: 0,
     CONVERTING: 25,
@@ -47,91 +54,69 @@ class ConversionClient {
   static async makeRequest(endpoint, options, retries = CONFIG.MAX_RETRIES) {
     try {
       // Log request details
-      console.log(`Sending request to ${endpoint} with options:`, options);
+      console.log(`Making request to ${endpoint}:`, {
+        method: options.method,
+        headers: options.headers,
+        bodyType: options.body instanceof FormData ? 'FormData' : 'JSON'
+      });
 
-      // If body is FormData, log its entries
+      // Log FormData details if present
       if (options.body instanceof FormData) {
         for (const [key, value] of options.body.entries()) {
-          console.log(`FormData key: ${key}, value:`, value);
+          console.log(`FormData: ${key}:`, value);
         }
-      } else {
-        console.log(`Request body: ${options.body}`);
+      } else if (typeof options.body === 'string') {
+        console.log('Request body:', JSON.parse(options.body));
       }
 
       // Make the request
-      const response = await fetch(endpoint, { ...options });
-
-      // Log response status
-      console.log('Response status:', response.status);
+      const response = await fetch(endpoint, options);
+      console.log(`Response status: ${response.status}`);
 
       if (!response.ok) {
-        let errorText;
-        try {
-          errorText = await response.text();
-        } catch (e) {
-          errorText = 'Failed to read error response';
-        }
-
+        const errorText = await response.text();
         throw new ConversionError(
           `Request failed with status ${response.status}: ${errorText}`,
           'API_ERROR'
         );
       }
 
-      // Handle different response types
-      const contentType = response.headers.get('Content-Type');
+      // Handle response based on content type
+      const contentType = response.headers.get('Content-Type') || '';
 
-      if (
-        contentType &&
-        (contentType.includes('application/zip') ||
-          contentType.includes('application/octet-stream'))
-      ) {
+      // Return blob for zip/binary responses
+      if (contentType.includes('application/zip') || 
+          contentType.includes('application/octet-stream')) {
         return await response.blob();
       }
 
-      // For JSON responses
-      try {
-        const data = await response.json();
-        if (!data.success) {
-          throw new ConversionError(
-            data.error?.message || 'Conversion failed',
-            'CONVERSION_ERROR',
-            data.error
-          );
-        }
-        return data;
-      } catch (parseError) {
-        console.error('Error parsing response:', parseError);
+      // Parse JSON responses
+      const data = await response.json();
+      if (!data.success) {
         throw new ConversionError(
-          'Failed to parse server response',
-          'PARSE_ERROR',
-          parseError
+          data.error?.message || 'Conversion failed',
+          'CONVERSION_ERROR',
+          data.error
         );
       }
+      return data;
+
     } catch (error) {
-      // Log the full error for debugging
-      console.error('Request error:', {
-        error,
-        message: error?.message,
-        stack: error?.stack,
-        name: error?.name
+      console.error('Request failed:', {
+        endpoint,
+        error: error.message,
+        code: error.code
       });
 
       // Handle retries
       if (retries > 0 && this.shouldRetry(error)) {
         console.log(`Retrying request (${retries} attempts left)...`);
-        await new Promise((resolve) => setTimeout(resolve, CONFIG.RETRY_DELAY));
+        await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
         return this.makeRequest(endpoint, options, retries - 1);
       }
 
-      // If it's already a ConversionError, throw it directly
-      if (error instanceof ConversionError) {
-        throw error;
-      }
-
-      // Create a new ConversionError with a safe error message
-      const errorMessage = error?.message || 'An unknown error occurred';
-      throw new ConversionError(errorMessage, 'REQUEST_ERROR', error);
+      throw error instanceof ConversionError ? error : 
+        new ConversionError(error.message, 'REQUEST_ERROR', error);
     }
   }
 
@@ -141,15 +126,11 @@ class ConversionClient {
    * @returns {boolean} - Whether to retry the request.
    */
   static shouldRetry(error) {
-    // Define retryable error codes
     const retryableCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED'];
-
-    // Network errors or specific error codes should be retried
-    return (
-      error.name === 'NetworkError' ||
-      retryableCodes.includes(error.code) ||
-      (error instanceof ConversionError && error.code === 'API_ERROR')
-    );
+    
+    return error.name === 'NetworkError' ||
+           retryableCodes.includes(error.code) ||
+           (error instanceof ConversionError && error.code === 'API_ERROR');
   }
 
   /**
@@ -159,54 +140,48 @@ class ConversionClient {
    * @returns {Promise<Blob>} - The ZIP file blob.
    */
   static async convertUrl(url, apiKey) {
-    const endpoint = ENDPOINTS.CONVERT_URL;
-    const options = {
+    return this.makeRequest(ENDPOINTS.CONVERT_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey && { 'x-api-key': apiKey }) // Use 'x-api-key' as per backend expectation
+        ...(apiKey && { 'x-api-key': apiKey })
       },
       body: JSON.stringify({ url })
-    };
-    return this.makeRequest(endpoint, options);
+    });
   }
 
   /**
-   * Converts a single YouTube URL
+   * Converts a parent URL and all its child pages
+   * @param {string} parentUrl - The parent URL to convert
+   * @param {string} apiKey - The API key for authentication
+   * @returns {Promise<Blob>} - The ZIP file blob containing all converted pages.
+   */
+  static async convertParentUrl(parentUrl, apiKey) {
+    return this.makeRequest(ENDPOINTS.CONVERT_PARENT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey && { 'x-api-key': apiKey })
+      },
+      body: JSON.stringify({ parenturl: parentUrl })
+    });
+  }
+
+  /**
+   * Converts a YouTube URL to markdown
    * @param {string} youtubeUrl - The YouTube URL to convert
    * @param {string} apiKey - The API key for authentication
    * @returns {Promise<Blob>} - The ZIP file blob.
    */
   static async convertYoutube(youtubeUrl, apiKey) {
-    const endpoint = ENDPOINTS.CONVERT_YOUTUBE;
-    const options = {
+    return this.makeRequest(ENDPOINTS.CONVERT_YOUTUBE, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey && { 'x-api-key': apiKey }) // Use 'x-api-key' as per backend expectation
+        ...(apiKey && { 'x-api-key': apiKey })
       },
       body: JSON.stringify({ url: youtubeUrl })
-    };
-    return this.makeRequest(endpoint, options);
-  }
-
-  /**
-   * Converts multiple items as a batch
-   * @param {Array<Object>} batchItems - Array of items to convert.
-   * @param {string} apiKey - API key for authentication.
-   * @returns {Promise<Blob>} - The ZIP file blob.
-   */
-  static async convertBatch(batchItems, apiKey) {
-    const endpoint = ENDPOINTS.CONVERT_BATCH;
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(apiKey && { 'x-api-key': apiKey }) // Use 'x-api-key' as per backend expectation
-      },
-      body: JSON.stringify({ items: batchItems })
-    };
-    return this.makeRequest(endpoint, options);
+    });
   }
 
   /**
@@ -216,20 +191,87 @@ class ConversionClient {
    * @returns {Promise<Blob>} - The ZIP file blob.
    */
   static async convertFile(file, apiKey) {
-    const endpoint = ENDPOINTS.CONVERT_FILE;
     const formData = new FormData();
     formData.append('file', file);
 
-    const options = {
+    return this.makeRequest(ENDPOINTS.CONVERT_FILE, {
       method: 'POST',
       headers: {
-        ...(apiKey && { 'x-api-key': apiKey }) // Use 'x-api-key' as per backend expectation
+        ...(apiKey && { 'x-api-key': apiKey })
       },
       body: formData
-    };
-    return this.makeRequest(endpoint, options);
+    });
+  }
+
+  /**
+   * Converts multiple items as a batch
+   * @param {Array<Object>} batchItems - Array of items to convert.
+   * @param {string} apiKey - API key for authentication.
+   * @returns {Promise<Blob>} - The ZIP file blob.
+   */
+  static async convertBatch(batchItems, apiKey) {
+    return this.makeRequest(ENDPOINTS.CONVERT_BATCH, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey && { 'x-api-key': apiKey })
+      },
+      body: JSON.stringify({ items: batchItems })
+    });
+  }
+
+  /**
+   * Converts a single item based on its type
+   * @param {Object} item - The item to convert
+   * @param {string} apiKey - The API key for authentication
+   * @returns {Promise<Blob>} - The ZIP file blob
+   */
+  static async convertItem(item, apiKey) {
+    console.log('Converting item:', item);
+
+    switch(item.type) {
+      case CONFIG.ITEM_TYPES.FILE:
+        return this.convertFile(item.file, apiKey);
+      
+      case CONFIG.ITEM_TYPES.PARENT_URL:
+        return this.convertParentUrl(item.url, apiKey);
+      
+      case CONFIG.ITEM_TYPES.YOUTUBE:
+        return this.convertYoutube(item.url, apiKey);
+      
+      case CONFIG.ITEM_TYPES.URL:
+        return this.convertUrl(item.url, apiKey);
+      
+      default:
+        throw new ConversionError(`Unknown item type: ${item.type}`);
+    }
+  }
+
+  /**
+   * Process a list of items, either as batch or individually
+   * @param {Array<Object>} items - The items to process
+   * @param {string} apiKey - The API key for authentication
+   * @param {boolean} useBatch - Whether to use batch processing
+   * @returns {Promise<Array<{success: boolean, result: Blob|Error}>>} - Results array
+   */
+  static async processItems(items, apiKey, useBatch = false) {
+    if (useBatch) {
+      const blob = await this.convertBatch(items, apiKey);
+      return [{ success: true, result: blob }];
+    }
+
+    const results = [];
+    for (const item of items) {
+      try {
+        const blob = await this.convertItem(item, apiKey);
+        results.push({ success: true, result: blob });
+      } catch (error) {
+        results.push({ success: false, result: error });
+      }
+    }
+    return results;
   }
 }
 
 export default ConversionClient;
-export { ConversionError };
+export { ConversionError, CONFIG };

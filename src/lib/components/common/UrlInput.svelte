@@ -3,113 +3,181 @@
     import { createEventDispatcher } from 'svelte';
     import { fade, fly } from 'svelte/transition';
     import { uploadStore } from '../../stores/uploadStore';
-    import { validateUrl, couldBeValidUrl, normalizeUrl } from '../../utils/validators.js'; // Ensure correct path
+    import { files } from '../../stores/files.js';
+    import { validateUrl, couldBeValidUrl, normalizeUrl } from '../../utils/validators.js';
 
     const dispatch = createEventDispatcher();
+
+    // State
     let inputValue = '';
     let errorMessage = '';
 
-    // Update input value when store changes
+    // URL type configurations
+    const URL_TYPES = {
+        youtube: {
+            icon: '🎥',
+            placeholder: 'Enter YouTube URL to convert',
+            description: 'Convert YouTube video to Markdown notes',
+            type: 'youtube'
+        },
+        parent: {
+            icon: '🗺️',
+            placeholder: 'Enter Parent URL to convert',
+            description: 'Convert all pages linked from this URL',
+            type: 'parent'
+        },
+        single: {
+            icon: '🔗',
+            placeholder: 'Enter URL to convert',
+            description: 'Convert single webpage to Markdown',
+            type: 'url'
+        }
+    };
+
+    // Reactive declarations
+    $: activeType = $uploadStore.activeTab;
+    $: currentConfig = URL_TYPES[activeType] || URL_TYPES.single;
+    
     $: {
-        inputValue = $uploadStore.activeTab === 'youtube' 
+        inputValue = activeType === 'youtube' 
             ? $uploadStore.youtubeUrlInput 
             : $uploadStore.urlInput;
     }
 
-    // Update store when input changes
+    $: isValidFormat = inputValue && couldBeValidUrl(inputValue);
+
+    /**
+     * Handles input changes and updates store
+     * @param {Event} event - Input event
+     */
     function handleInput(event) {
         const value = event.target.value;
-        if ($uploadStore.activeTab === 'youtube') {
+        inputValue = value;
+        
+        if (activeType === 'youtube') {
             uploadStore.setYoutubeInput(value);
         } else {
             uploadStore.setUrlInput(value);
         }
         
-        // Clear previous error message on input
         errorMessage = '';
     }
 
+    /**
+     * Adds URL to conversion queue
+     */
     function handleSubmit() {
         try {
-            // Normalize the URL before validation and dispatch
+            // Normalize and validate URL
             const normalizedUrl = normalizeUrl(inputValue);
             validateUrl(normalizedUrl);
 
-            const eventType = $uploadStore.activeTab === 'youtube' ? 'submitYoutube' : 'submitUrl';
-            dispatch(eventType, { url: normalizedUrl, type: $uploadStore.activeTab });
+            // Create file object based on type
+            const urlObj = new URL(normalizedUrl);
+            const fileObj = {
+                id: crypto.randomUUID(),
+                url: normalizedUrl,
+                name: urlObj.hostname,
+                type: currentConfig.type,
+                status: 'pending'
+            };
 
-            // Clear input after submission
-            if ($uploadStore.activeTab === 'youtube') {
-                uploadStore.setYoutubeInput('');
+            // Add to files store
+            const result = files.addFile(fileObj);
+
+            if (result.success) {
+                // Clear input after successful addition
+                inputValue = '';
+                if (activeType === 'youtube') {
+                    uploadStore.setYoutubeInput('');
+                } else {
+                    uploadStore.setUrlInput('');
+                }
+
+                // Notify parent component
+                dispatch('fileAdded', { file: fileObj });
             } else {
-                uploadStore.setUrlInput('');
+                errorMessage = result.message;
             }
         } catch (error) {
+            console.error('URL validation error:', error);
             errorMessage = error.message;
         }
     }
 
-    $: isYoutube = $uploadStore.activeTab === 'youtube';
-    $: placeholder = isYoutube 
-        ? 'Enter YouTube URL to convert'
-        : `Enter a ${$uploadStore.activeTab === 'parent' ? 'Parent URL' : 'URL'} to convert`;
-
-    $: isValidFormat = couldBeValidUrl(inputValue);
+    /**
+     * Handles keyboard submission
+     * @param {KeyboardEvent} event - Keyboard event
+     */
+    function handleKeyPress(event) {
+        if (event.key === 'Enter' && isValidFormat) {
+            handleSubmit();
+        }
+    }
 </script>
 
 <div class="url-input-section" in:fade={{ duration: 200 }}>
+    <!-- Input Container -->
     <div class="input-container">
+        <!-- Type Icon -->
         <div class="input-icon" aria-hidden="true">
-            {#if isYoutube}
-                🎥
-            {:else if $uploadStore.activeTab === 'parent'}
-                🗺️
-            {:else}
-                🔗
-            {/if}
+            {currentConfig.icon}
         </div>
 
+        <!-- URL Input -->
         <input
             type="text"
             class="url-input"
-            placeholder={placeholder}
+            placeholder={currentConfig.placeholder}
             value={inputValue}
             on:input={handleInput}
-            on:keypress={(e) => e.key === 'Enter' && handleSubmit()}
-            aria-describedby="url-error"
+            on:keypress={handleKeyPress}
+            aria-label={currentConfig.placeholder}
+            aria-describedby="url-error url-description"
         />
 
+        <!-- Submit Button -->
         <button 
             class="submit-button"
             on:click={handleSubmit}
-            disabled={!inputValue.trim() || !isValidFormat}
-            title="Add URL"
+            disabled={!isValidFormat}
+            aria-label="Add URL to queue"
         >
             <span class="icon">➕</span>
         </button>
     </div>
 
+    <!-- Error Message -->
     {#if errorMessage}
-        <div id="url-error" class="error-message" in:fade={{ duration: 200 }}>
+        <div 
+            id="url-error" 
+            class="error-message" 
+            role="alert"
+            in:fade={{ duration: 200 }}
+        >
             {errorMessage}
         </div>
     {/if}
 
+    <!-- Format Warning -->
     {#if inputValue && !isValidFormat && !errorMessage}
-        <div id="url-error" class="error-message" in:fade={{ duration: 200 }}>
+        <div 
+            id="url-format-warning" 
+            class="error-message" 
+            role="alert"
+            in:fade={{ duration: 200 }}
+        >
             The URL format looks incorrect.
         </div>
     {/if}
 
-    <!-- URL Type Indicator -->
-    <div class="url-type-indicator" in:fly={{ y: 10, duration: 200 }}>
-        {#if isYoutube}
-            Convert YouTube video to Markdown notes
-        {:else if $uploadStore.activeTab === 'parent'}
-            Convert all pages linked from this URL
-        {:else}
-            Convert single webpage to Markdown
-        {/if}
+    <!-- URL Type Description -->
+    <div 
+        id="url-description"
+        class="url-type-indicator" 
+        in:fly={{ y: 10, duration: 200 }}
+    >
+        {currentConfig.description}
     </div>
 </div>
 
@@ -118,6 +186,9 @@
         display: flex;
         flex-direction: column;
         gap: var(--spacing-xs);
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
     }
 
     .input-container {
@@ -127,7 +198,7 @@
         border: 2px solid var(--color-border);
         border-radius: var(--rounded-lg);
         padding: var(--spacing-xs);
-        transition: all var(--transition-duration-normal);
+        transition: all var(--transition-duration-normal) var(--transition-timing-ease);
     }
 
     .input-container:focus-within {
@@ -135,9 +206,15 @@
         box-shadow: var(--shadow-sm);
     }
 
+    .input-container.is-submitting {
+        opacity: 0.7;
+        cursor: wait;
+    }
+
     .input-icon {
         padding: var(--spacing-xs) var(--spacing-sm);
         font-size: var(--font-size-lg);
+        opacity: 0.8;
     }
 
     .url-input {
@@ -154,6 +231,11 @@
         outline: none;
     }
 
+    .url-input:disabled {
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
     .submit-button {
         display: flex;
         align-items: center;
@@ -165,7 +247,7 @@
         width: 36px;
         height: 36px;
         cursor: pointer;
-        transition: all var(--transition-duration-normal);
+        transition: all var(--transition-duration-normal) var(--transition-timing-ease);
     }
 
     .submit-button:hover:not(:disabled) {
@@ -176,20 +258,25 @@
     .submit-button:disabled {
         background: var(--color-disabled);
         cursor: not-allowed;
+        transform: none;
     }
 
     .error-message {
         color: var(--color-error);
         font-size: var(--font-size-sm);
         margin-top: var(--spacing-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        background: var(--color-error-light);
+        border-radius: var(--rounded-md);
     }
 
     .url-type-indicator {
         font-size: var(--font-size-sm);
         color: var(--color-text-secondary);
-        padding-left: var(--spacing-md);
+        padding: var(--spacing-xs) var(--spacing-md);
     }
 
+    /* Dark Mode */
     @media (prefers-color-scheme: dark) {
         .input-container {
             background: var(--color-background);
@@ -200,6 +287,7 @@
         }
     }
 
+    /* Mobile Responsiveness */
     @media (max-width: 640px) {
         .url-input {
             font-size: var(--font-size-sm);
@@ -208,6 +296,33 @@
         .submit-button {
             width: 32px;
             height: 32px;
+        }
+
+        .input-icon {
+            font-size: var(--font-size-base);
+        }
+    }
+
+    /* Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+        .input-container,
+        .submit-button {
+            transition: none;
+        }
+
+        .submit-button:hover:not(:disabled) {
+            transform: none;
+        }
+    }
+
+    /* High Contrast */
+    @media (prefers-contrast: high) {
+        .input-container {
+            border-width: 3px;
+        }
+
+        .submit-button {
+            outline: 2px solid currentColor;
         }
     }
 </style>
