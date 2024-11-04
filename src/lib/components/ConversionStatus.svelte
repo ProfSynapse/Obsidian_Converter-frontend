@@ -3,7 +3,8 @@
   import { conversionStatus } from '$lib/stores/conversionStatus.js';
   import { files } from '$lib/stores/files.js';
   import { apiKey } from '$lib/stores/apiKey.js';
-  import { ENDPOINTS } from '$lib/utils/api/endpoints.js';
+  import ConversionClient, { ConversionError } from '$lib/utils/api/client.js';
+  import FileSaver from 'file-saver';
   import { onDestroy } from 'svelte';
   import { fade, slide } from 'svelte/transition';
   import Container from './common/Container.svelte';
@@ -12,16 +13,16 @@
   let progress = 0;
   let error = null;
 
-  // Subscribe to stores
+  // Subscribe to conversionStatus store
   const unsubscribe = conversionStatus.subscribe(value => {
     status = value.status;
     progress = value.progress;
     error = value.error;
   });
 
-  // Compute if conversion can start and if API key is required
-  $: hasMediaFiles = $files.some(file => 
-    ['mp3', 'wav', 'ogg', 'mp4', 'mov', 'avi', 'webm'].includes(file.type)
+  // Reactive variables
+  $: hasMediaFiles = $files.some(file =>
+    ['mp3', 'wav', 'ogg', 'mp4', 'mov', 'avi', 'webm'].includes(file.type.toLowerCase())
   );
   $: apiKeyRequired = hasMediaFiles && !$apiKey;
   $: canStartConversion = $files.length > 0 && status !== 'converting' && !apiKeyRequired;
@@ -56,12 +57,12 @@
 
           return {
             type: 'file',
-            name: file.name,
+            name: sanitizeFilename(file.name) || `file-${uuidv4()}`,
             content: base64Content,
-            fileType: file.type
+            fileType: file.type.toLowerCase()
           };
-        } else if (file.type === 'youtube') {
-          // Handle YouTube URLs - no API key needed
+        } else if (file.type.toLowerCase() === 'youtube') {
+          // Handle YouTube URLs
           const videoId = extractYoutubeId(file.url);
           if (!videoId) {
             throw new Error('Invalid YouTube URL');
@@ -76,10 +77,10 @@
         } else {
           // Handle other URLs
           return {
-            type: file.type,
-            name: file.name,
+            type: 'url',
+            name: new URL(file.url).hostname,
             content: file.url,
-            fileType: file.type
+            fileType: 'url'
           };
         }
       } catch (error) {
@@ -99,57 +100,67 @@
       conversionStatus.setStatus('converting');
       conversionStatus.setProgress(0);
 
-      const items = await prepareBatchItems();
-      
-      // Prepare headers
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      
-      // Add API key only if we have media files (not for YouTube)
-      if (hasMediaFiles && $apiKey) {
-        headers['X-API-Key'] = $apiKey;
+      let resultBlob;
+
+      if ($files.length === 1) {
+        const file = $files[0];
+        const currentApiKey = $apiKey || '';
+
+        if (file.file) {
+          // It's a file upload
+          resultBlob = await ConversionClient.convertFile(file.file, currentApiKey);
+        } else if (file.type.toLowerCase() === 'youtube') {
+          // It's a YouTube URL
+          resultBlob = await ConversionClient.convertYoutube(file.url, currentApiKey);
+        } else {
+          // It's a regular URL
+          resultBlob = await ConversionClient.convertUrl(file.url, currentApiKey);
+        }
+      } else {
+        // Batch conversion
+        const batchItems = await prepareBatchItems();
+        resultBlob = await ConversionClient.convertBatch(batchItems, $apiKey);
       }
 
-      // Make the conversion request
-      const response = await fetch(ENDPOINTS.CONVERT_BATCH, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ items })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || response.statusText);
-      }
-
-      // Handle the ZIP file response
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `converted_files_${new Date().toISOString().slice(0,10)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      // Handle the result blob (e.g., save the file or update the UI)
+      FileSaver.saveAs(resultBlob, 'conversion_result.zip');
 
       conversionStatus.setStatus('completed');
       conversionStatus.setProgress(100);
-    } catch (error) {
-      console.error('Conversion error:', error);
-      conversionStatus.setError(error.message);
+      showFeedback('Conversion completed successfully', 'success');
+
+    } catch (err) {
+      console.error('Conversion error:', err);
+
+      let errorMessage = 'An unexpected error occurred during conversion.';
+      if (err instanceof ConversionError) {
+        errorMessage = err.message;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+
+      conversionStatus.setError(errorMessage);
       conversionStatus.setStatus('error');
     }
   }
+
+  /**
+   * Shows feedback message
+   */
+  function showFeedback(message, type = 'info') {
+    // Implement a method to show feedback to the user
+    // For simplicity, you might use a toast library or set a local variable
+    console.log(`${type.toUpperCase()}: ${message}`);
+    // Example: dispatch a custom event or use a store to show a toast
+  }
 </script>
 
-<Container className="conversion-container">
+<Container class="conversion-container">
   <div class="conversion-controls">
     <!-- Status Display -->
     {#if status === 'converting'}
       <div class="status-info" in:fade>
-        <span class="icon">🔄</span>
+        <span class="icon">🕛</span>
         <span>Converting... {progress}%</span>
       </div>
       <div class="progress-bar">

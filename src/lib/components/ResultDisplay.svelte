@@ -5,7 +5,8 @@
   import { fade } from 'svelte/transition';
   import Container from './common/Container.svelte';
   import JSZip from 'jszip';
-  import { saveAs } from 'file-saver';
+  import pkg from 'file-saver';
+  const { saveAs } = pkg;
 
   let convertedFiles = [];
 

@@ -1,232 +1,181 @@
 <!-- src/lib/components/ApiKeyInput.svelte -->
 <script>
-  import { onMount } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
-  import { apiKey } from '$lib/stores/apiKey';
-  import { files } from '$lib/stores/files';
-  import Container from './common/Container.svelte';
-  
-  let apiKeyInput = '';
-  let isVisible = false;
-  let isFocused = false;
-  let isValid = false;
-  let isDirty = false;
-  
-  // Media types that require API key
-  const API_REQUIRED_TYPES = ['mp3', 'wav', 'ogg', 'mp4', 'mov', 'avi', 'webm'];
-  
-  // Check if there are any media files that require API key
-  $: hasMediaFiles = $files.some(file => 
-    API_REQUIRED_TYPES.includes(file.type)
-  );
+  import { createEventDispatcher } from 'svelte';
+  import { uploadStore } from '../../stores/uploadStore';
+  import { validateApiKey } from '../../utils/validators.js'; // Ensure correct path
 
-  // Compute whether API key is required
-  $: apiKeyRequired = hasMediaFiles;
-  
-  // Validation function
-  function validateApiKey(key) {
-    if (!apiKeyRequired) return true;
-    return key;
-  }
-  
+  const dispatch = createEventDispatcher();
+  let apiKey = '';
+  let showApiKey = false; // To toggle visibility
+  let errorMessage = '';
+
   function handleInput(event) {
-    const value = event.target.value;
-    isDirty = true;
-    isValid = validateApiKey(value);
-    
-    if (value !== $apiKey) {
-      apiKey.set(value);
-      if (value) {
-        localStorage.setItem('apiKey', value);
-      } else {
-        localStorage.removeItem('apiKey');
+      apiKey = event.target.value;
+      // Clear previous error message on input
+      errorMessage = '';
+  }
+
+  function handleSubmit() {
+      try {
+          validateApiKey(apiKey);
+          dispatch('submitApiKey', { apiKey });
+          // Clear input after submission if desired
+          uploadStore.setApiKey(apiKey);
+      } catch (error) {
+          errorMessage = error.message;
       }
-    }
   }
-  
-  function toggleVisibility() {
-    isVisible = !isVisible;
+
+  function toggleShowApiKey() {
+      showApiKey = !showApiKey;
   }
-  
-  onMount(() => {
-    const storedApiKey = localStorage.getItem('apiKey');
-    if (storedApiKey) {
-      apiKeyInput = storedApiKey;
-      apiKey.set(storedApiKey);
-      isValid = validateApiKey(storedApiKey);
-      isDirty = true;
-    }
-  });
 </script>
 
-{#if apiKeyRequired}
-  <Container
-    title="OpenAI API Key Required"
-    subtitle="An OpenAI API key is required for transcribing audio and video files. Text-based files do not require an API key."
-  >
-    <div class="explanation-text">
-      <p class="file-types">
-        Required for: <span class="highlight">Audio files (.mp3, .wav, .ogg)</span> and 
-        <span class="highlight">Video files (.mp4, .mov, .avi, .webm)</span>
-      </p>
-    </div>
-
-    <div class="input-container" class:is-focused={isFocused}>
-      <div class="input-wrapper">
-        <input
-          type={isVisible ? "text" : "password"}
-          bind:value={apiKeyInput}
+<div class="api-key-input-section">
+  <div class="input-container">
+      <input
+          type={showApiKey ? 'text' : 'password'}
+          class="api-key-input"
+          placeholder="Enter your API Key"
+          value={apiKey}
           on:input={handleInput}
-          on:focus={() => isFocused = true}
-          on:blur={() => isFocused = false}
-          placeholder="Enter your OpenAI API key"
-          class="input"
-          class:is-valid={isValid}
-          class:is-invalid={isDirty && !isValid}
-        />
-        <button
+          on:keypress={(e) => e.key === 'Enter' && handleSubmit()}
+          aria-describedby="api-key-error"
+      />
+
+      <button 
           type="button"
-          class="visibility-toggle"
-          on:click={toggleVisibility}
-          aria-label={isVisible ? 'Hide API key' : 'Show API key'}
-        >
-          <span class="icon">
-            {#if isVisible}
+          class="toggle-button"
+          on:click={toggleShowApiKey}
+          aria-label={showApiKey ? 'Hide API Key' : 'Show API Key'}
+      >
+          {#if showApiKey}
               👁️
-            {:else}
-              🔒
-            {/if}
-          </span>
-        </button>
+          {:else}
+              🙈
+          {/if}
+      </button>
+
+      <button 
+          class="submit-button"
+          on:click={handleSubmit}
+          disabled={!apiKey.trim()}
+          title="Submit API Key"
+      >
+          <span class="icon">✔️</span>
+      </button>
+  </div>
+
+  {#if errorMessage}
+      <div id="api-key-error" class="error-message">
+          {errorMessage}
       </div>
+  {/if}
 
-      {#if isDirty && !isValid}
-        <div class="error-message" transition:fly={{ y: -10, duration: 200 }}>
-          API key should be at least 32 characters long
-        </div>
-      {/if}
-    </div>
-
-    <div class="help-text">
-      <p class="text-muted">
-        Get your API key from
-        <a
-          href="https://platform.openai.com/api-keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="link"
-        >
-          OpenAI API Keys <span class="icon">↗️</span>
-        </a>
-        <span class="pricing-info">
-          (Transcription costs approximately $0.006 per minute)
-        </span>
-      </p>
-    </div>
-  </Container>
-{/if}
+  <div class="api-key-indicator">
+      Securely store your API key to access conversion services.
+  </div>
+</div>
 
 <style>
-  .explanation-text {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-light);
-    margin-bottom: var(--spacing-md);
-  }
-
-  .file-types {
-    margin-top: var(--spacing-xs);
-  }
-
-  .highlight {
-    color: var(--color-prime);
-    font-weight: var(--font-weight-medium);
+  .api-key-input-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
   }
 
   .input-container {
-    width: 100%;
-    margin-bottom: var(--spacing-md);
+      display: flex;
+      align-items: center;
+      background: var(--color-surface);
+      border: 2px solid var(--color-border);
+      border-radius: var(--rounded-lg);
+      padding: var(--spacing-xs);
+      transition: all var(--transition-duration-normal);
   }
 
-  .input-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
+  .input-container:focus-within {
+      border-color: var(--color-prime);
+      box-shadow: var(--shadow-sm);
   }
 
-  .input {
-    width: 100%;
-    padding: var(--spacing-sm) var(--spacing-lg);
-    padding-right: 40px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--rounded-md);
-    font-size: var(--font-size-base);
-    transition: all var(--transition-duration-normal);
-    background: var(--color-background);
-    color: var(--color-text);
+  .api-key-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: var(--spacing-sm);
+      font-size: var(--font-size-base);
+      color: var(--color-text);
+      min-width: 0;
   }
 
-  .input:focus {
-    outline: none;
-    border-color: var(--color-prime);
-    box-shadow: 0 0 0 2px rgba(0, 169, 157, 0.1);
+  .api-key-input:focus {
+      outline: none;
   }
 
-  .input.is-valid {
-    border-color: var(--color-success);
+  .toggle-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: var(--spacing-sm);
+      font-size: var(--font-size-lg);
+      margin-right: var(--spacing-sm);
   }
 
-  .input.is-invalid {
-    border-color: var(--color-error);
+  .submit-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--color-prime);
+      color: var(--color-text-on-dark);
+      border: none;
+      border-radius: var(--rounded-md);
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      transition: all var(--transition-duration-normal);
   }
 
-  .visibility-toggle {
-    position: absolute;
-    right: var(--spacing-sm);
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    padding: var(--spacing-xs);
-    cursor: pointer;
-    color: var(--color-text-light);
-    transition: color var(--transition-duration-normal);
+  .submit-button:hover:not(:disabled) {
+      transform: scale(1.05);
+      background: var(--color-second);
   }
 
-  .visibility-toggle:hover {
-    color: var(--color-text);
+  .submit-button:disabled {
+      background: var(--color-disabled);
+      cursor: not-allowed;
   }
 
   .error-message {
-    margin-top: var(--spacing-xs);
-    color: var(--color-error);
-    font-size: var(--font-size-sm);
+      color: var(--color-error);
+      font-size: var(--font-size-sm);
+      margin-top: var(--spacing-xs);
   }
 
-  .help-text {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-light);
+  .api-key-indicator {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      padding-left: var(--spacing-md);
   }
 
-  .link {
-    color: var(--color-prime);
-    text-decoration: none;
-  }
+  @media (prefers-color-scheme: dark) {
+      .input-container {
+          background: var(--color-background);
+      }
 
-  .link:hover {
-    text-decoration: underline;
-  }
-
-  .pricing-info {
-    display: block;
-    margin-top: var(--spacing-xs);
-    font-size: var(--font-size-xs);
-    opacity: 0.8;
+      .api-key-input {
+          color: var(--color-text-on-dark);
+      }
   }
 
   @media (max-width: 640px) {
-    .input {
-      font-size: var(--font-size-sm);
-      padding: var(--spacing-xs) var(--spacing-md);
-    }
+      .api-key-input {
+          font-size: var(--font-size-sm);
+      }
+
+      .submit-button {
+          width: 32px;
+          height: 32px;
+      }
   }
 </style>

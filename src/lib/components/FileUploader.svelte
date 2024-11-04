@@ -4,6 +4,7 @@
   import { files } from '$lib/stores/files.js';
   import { uploadStore } from '$lib/stores/uploadStore';
   import { fade } from 'svelte/transition';
+  import { validateUrl } from '$lib/utils/validators';
   
   // Import common components
   import Container from './common/Container.svelte';
@@ -91,34 +92,39 @@
   }
 
   /**
-   * Handles URL submission from UrlInput component
-   * @param {CustomEvent} event - Event containing URL data
-   */
-  async function handleUrlSubmit(event) {
-    try {
-      const { url, type = 'url' } = event.detail;
-      const newFile = {
-        id: crypto.randomUUID(),
-        url: url,
-        name: type === 'youtube' ? extractYouTubeVideoId(url) : new URL(url).hostname,
-        type: type,
-        status: 'pending'
-      };
+     * Handles URL submission from UrlInput component
+     * @param {CustomEvent} event - Event containing URL data
+     */
+    async function handleUrlSubmit(event) {
+        try {
+            let { url, type = 'url' } = event.detail;
 
-      const result = files.addFile(newFile);
-      
-      if (result.success) {
-        showFeedback(`${type.toUpperCase()} added successfully`, 'success');
-        dispatch('filesAdded', { files: [newFile] });
-      } else {
-        showFeedback(result.message, 'error');
-      }
+            // Normalize and validate the URL
+            url = validateUrl(url); // This will throw if invalid
 
-    } catch (error) {
-      console.error('Error adding URL:', error);
-      showFeedback(error.message, 'error');
+            const newFile = {
+                id: crypto.randomUUID(),
+                url: url,
+                name: type === 'youtube' ? extractYouTubeVideoId(url) : new URL(url).hostname,
+                type: type,
+                status: 'pending'
+            };
+
+            const result = files.addFile(newFile);
+            
+            if (result.success) {
+                showFeedback(`${type.toUpperCase()} added successfully`, 'success');
+                dispatch('filesAdded', { files: [newFile] });
+            } else {
+                showFeedback(result.message, 'error');
+            }
+
+        } catch (error) {
+            console.error('Error adding URL:', error);
+            showFeedback(error.message, 'error');
+        }
     }
-  }
+
 
   /**
    * Extracts YouTube Video ID from URL
