@@ -2,9 +2,8 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { files } from '$lib/stores/files.js';
-  import { uploadStore } from '$lib/stores/uploadStore';
+  import { uploadStore } from '$lib/stores/uploadStore.js';
   import { fade } from 'svelte/transition';
-  import { validateUrl } from '$lib/utils/validators';
   
   // Import common components
   import Container from './common/Container.svelte';
@@ -12,7 +11,7 @@
   import UrlInput from './common/UrlInput.svelte';
   import DropZone from './common/DropZone.svelte';
   import ErrorMessage from './common/ErrorMessage.svelte';
-  import FileList from './FileList.svelte';
+  import FileList from './file/FileList.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -25,6 +24,9 @@
   };
 
   const SUPPORTED_EXTENSIONS = Object.values(SUPPORTED_FILES).flat();
+
+  // Reactive variable to track file list visibility
+  $: showFileList = $files.length > 0;
 
   /**
    * Shows feedback messages to the user with auto-dismiss
@@ -48,36 +50,6 @@
   }
 
   /**
-   * Adds files to the store after validation
-   * @param {File[]} newFiles - Array of File objects to add
-   */
-  function handleFilesAdded(newFiles) {
-    newFiles.forEach(file => {
-      if (validateFile(file)) {
-        const extension = file.name.split('.').pop().toLowerCase();
-        const newFile = {
-          id: crypto.randomUUID(),
-          file: file,
-          name: file.name,
-          type: getFileType(extension),
-          status: 'pending',
-          progress: 0
-        };
-        
-        try {
-          files.addFile(newFile);
-          showFeedback(`Added: ${file.name}`, 'success');
-          dispatch('fileAdded', { file: newFile });
-        } catch (error) {
-          showFeedback(`Failed to add ${file.name}: ${error.message}`, 'error');
-        }
-      } else {
-        showFeedback(`Unsupported file type: ${file.name}`, 'error');
-      }
-    });
-  }
-
-  /**
    * Determines the file type category based on extension
    * @param {string} extension - The file extension
    * @returns {string} The file type category
@@ -92,39 +64,46 @@
   }
 
   /**
-     * Handles URL submission from UrlInput component
-     * @param {CustomEvent} event - Event containing URL data
-     */
-    async function handleUrlSubmit(event) {
+   * Adds files to the store after validation
+   * @param {File[]} newFiles - Array of File objects to add
+   */
+  function handleFilesAdded(newFiles) {
+    const addedFiles = [];
+
+    newFiles.forEach(file => {
+      if (validateFile(file)) {
+        const extension = file.name.split('.').pop().toLowerCase();
+        const newFile = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          file: file,
+          type: getFileType(extension),
+          status: 'Ready',
+          progress: 0,
+          selected: false
+        };
+        
         try {
-            let { url, type = 'url' } = event.detail;
-
-            // Normalize and validate the URL
-            url = validateUrl(url); // This will throw if invalid
-
-            const newFile = {
-                id: crypto.randomUUID(),
-                url: url,
-                name: type === 'youtube' ? extractYouTubeVideoId(url) : new URL(url).hostname,
-                type: type,
-                status: 'pending'
-            };
-
-            const result = files.addFile(newFile);
-            
-            if (result.success) {
-                showFeedback(`${type.toUpperCase()} added successfully`, 'success');
-                dispatch('filesAdded', { files: [newFile] });
-            } else {
-                showFeedback(result.message, 'error');
-            }
-
+          const result = files.addFile(newFile);
+          if (result.success) {
+            addedFiles.push(newFile);
+            showFeedback(`Added: ${file.name}`, 'success');
+          } else {
+            showFeedback(result.message, 'error');
+          }
         } catch (error) {
-            console.error('Error adding URL:', error);
-            showFeedback(error.message, 'error');
+          console.error('Error adding file:', error);
+          showFeedback(`Failed to add ${file.name}: ${error.message}`, 'error');
         }
-    }
+      } else {
+        showFeedback(`Unsupported file type: ${file.name}`, 'error');
+      }
+    });
 
+    if (addedFiles.length > 0) {
+      dispatch('filesAdded', { files: addedFiles });
+    }
+  }
 
   /**
    * Extracts YouTube Video ID from URL
@@ -138,14 +117,63 @@
   }
 
   /**
-   * Handles file removal
-   * @param {string} id - The ID of the file to remove
-   */
-  function handleFileRemove(id) {
+ * Handles URL submission from UrlInput component
+ * @param {CustomEvent} event - Event containing URL data
+ */
+async function handleUrlSubmit(event) {
     try {
-      files.removeFile(id);
-      showFeedback('File removed successfully', 'success');
+        let { url, type = 'url' } = event.detail;
+
+        // Create a unique ID for the file
+        const id = crypto.randomUUID();
+
+        const newFile = {
+            id,
+            url: url,
+            name: type === 'youtube' ? extractYouTubeVideoId(url) : new URL(url).hostname,
+            type: type,
+            status: 'ready',
+            progress: 0,
+            selected: false
+        };
+
+        const result = files.addFile(newFile);
+        
+        if (result.success) {
+            showFeedback(`${type.toUpperCase()} added successfully`, 'success');
+        } else {
+            showFeedback(result.message, 'error');
+        }
+
     } catch (error) {
+        console.error('Error adding URL:', error);
+        showFeedback(error.message, 'error');
+    }
+}
+
+  /**
+   * Handles file removal event from FileList
+   * @param {CustomEvent} event - The removal event
+   */
+  function handleFileRemove(event) {
+    const { detail } = event;
+    const id = detail?.id;
+
+    if (!id) {
+      console.error('No file ID provided for removal');
+      return;
+    }
+
+    try {
+      const result = files.removeFile(id);
+      if (result.success) {
+        showFeedback('File removed successfully', 'success');
+        dispatch('fileRemoved', { id });
+      } else {
+        showFeedback(result.message || 'Failed to remove file', 'error');
+      }
+    } catch (error) {
+      console.error('Error removing file:', error);
       showFeedback('Failed to remove file', 'error');
     }
   }
@@ -159,8 +187,13 @@
     <div class="upload-section">
       <TabNavigation />
       <UrlInput 
-        on:submitUrl={handleUrlSubmit}
-        on:submitYoutube={handleUrlSubmit}
+          on:submitUrl={handleUrlSubmit}
+          on:submitYoutube={(event) => handleUrlSubmit({
+              detail: { 
+                  url: event.detail.url, 
+                  type: 'youtube' 
+              }
+          })}
       />
     </div>
   </Container>
@@ -171,25 +204,25 @@
     subtitle="Drag and drop files or click to select">
     <DropZone
       acceptedTypes={SUPPORTED_EXTENSIONS}
-      on:filesDropped={(e) => handleFilesAdded(e.detail.files)}
-      on:filesSelected={(e) => handleFilesAdded(e.detail.files)}
+      on:filesDropped={(event) => handleFilesAdded(event.detail.files)}
+      on:filesSelected={(event) => handleFilesAdded(event.detail.files)}
     />
 
     {#if $uploadStore.errorMessage}
       <div class="error-container" transition:fade>
-        <ErrorMessage />
+        <ErrorMessage message={$uploadStore.errorMessage} />
       </div>
     {/if}
   </Container>
 
   <!-- File List Section -->
-  {#if $files.length > 0}
+  {#if showFileList}
     <Container 
       title="Items to Convert"
       subtitle="Files ready for processing">
       <FileList
-        files={$files}
-        onRemove={handleFileRemove}
+        files={$files} 
+        on:remove={handleFileRemove}
       />
     </Container>
   {/if}

@@ -2,15 +2,15 @@
 <script>
     import { createEventDispatcher } from 'svelte';
     import { fade, fly } from 'svelte/transition';
-    import { uploadStore } from '../../stores/uploadStore';
+    import { uploadStore } from '../../stores/uploadStore.js';
     import { files } from '../../stores/files.js';
-    import { validateUrl, couldBeValidUrl, normalizeUrl } from '../../utils/validators.js';
 
     const dispatch = createEventDispatcher();
 
     // State
     let inputValue = '';
     let errorMessage = '';
+    let loading = false;
 
     // URL type configurations
     const URL_TYPES = {
@@ -37,18 +37,45 @@
     // Reactive declarations
     $: activeType = $uploadStore.activeTab;
     $: currentConfig = URL_TYPES[activeType] || URL_TYPES.single;
-    
-    $: {
-        inputValue = activeType === 'youtube' 
-            ? $uploadStore.youtubeUrlInput 
-            : $uploadStore.urlInput;
-    }
-
     $: isValidFormat = inputValue && couldBeValidUrl(inputValue);
 
     /**
+     * Basic URL validation function
+     */
+    function couldBeValidUrl(input) {
+        try {
+            const trimmed = input.trim();
+            // Check for basic URL pattern
+            return /^(https?:\/\/)?([\w-]+(\.[\w-]+)+|localhost)(:\d+)?(\/\S*)?$/.test(trimmed);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * URL normalization function
+     */
+    function normalizeUrl(input) {
+        if (!input) throw new Error('URL is required');
+        
+        let url = input.trim().replace(/\s+/g, '');
+        
+        // Add https:// if no protocol specified
+        if (!/^https?:\/\//i.test(url)) {
+            url = `https://${url}`;
+        }
+        
+        try {
+            // Check if URL is valid
+            new URL(url);
+            return url;
+        } catch (error) {
+            throw new Error('Invalid URL format');
+        }
+    }
+
+    /**
      * Handles input changes and updates store
-     * @param {Event} event - Input event
      */
     function handleInput(event) {
         const value = event.target.value;
@@ -66,48 +93,57 @@
     /**
      * Adds URL to conversion queue
      */
-    function handleSubmit() {
+    async function handleSubmit() {
         try {
-            // Normalize and validate URL
-            const normalizedUrl = normalizeUrl(inputValue);
-            validateUrl(normalizedUrl);
+            if (!inputValue.trim()) {
+                throw new Error('Please enter a URL');
+            }
 
-            // Create file object based on type
+            // Normalize URL
+            const normalizedUrl = normalizeUrl(inputValue);
+
+            // Create file object
             const urlObj = new URL(normalizedUrl);
             const fileObj = {
-                id: crypto.randomUUID(),
                 url: normalizedUrl,
-                name: urlObj.hostname,
-                type: currentConfig.type,
-                status: 'pending'
+                name: `${urlObj.hostname}${urlObj.pathname}`,
+                type: currentConfig.type
             };
+
+            // Validate based on type
+            if (currentConfig.type === 'youtube') {
+                const youtubeRegex = /^https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)/;
+                if (!youtubeRegex.test(normalizedUrl)) {
+                    throw new Error('Invalid YouTube URL format');
+                }
+            }
 
             // Add to files store
             const result = files.addFile(fileObj);
 
             if (result.success) {
-                // Clear input after successful addition
                 inputValue = '';
                 if (activeType === 'youtube') {
                     uploadStore.setYoutubeInput('');
                 } else {
                     uploadStore.setUrlInput('');
                 }
-
-                // Notify parent component
-                dispatch('fileAdded', { file: fileObj });
+                dispatch('submitUrl', { 
+                    url: normalizedUrl, 
+                    type: currentConfig.type 
+                });
             } else {
                 errorMessage = result.message;
             }
+
         } catch (error) {
-            console.error('URL validation error:', error);
+            console.error('URL submission error:', error);
             errorMessage = error.message;
         }
     }
 
     /**
      * Handles keyboard submission
-     * @param {KeyboardEvent} event - Keyboard event
      */
     function handleKeyPress(event) {
         if (event.key === 'Enter' && isValidFormat) {
@@ -129,9 +165,10 @@
             type="text"
             class="url-input"
             placeholder={currentConfig.placeholder}
-            value={inputValue}
+            bind:value={inputValue}
             on:input={handleInput}
             on:keypress={handleKeyPress}
+            disabled={loading}
             aria-label={currentConfig.placeholder}
             aria-describedby="url-error url-description"
         />
@@ -140,7 +177,7 @@
         <button 
             class="submit-button"
             on:click={handleSubmit}
-            disabled={!isValidFormat}
+            disabled={!isValidFormat || loading}
             aria-label="Add URL to queue"
         >
             <span class="icon">➕</span>
@@ -204,11 +241,6 @@
     .input-container:focus-within {
         border-color: var(--color-prime);
         box-shadow: var(--shadow-sm);
-    }
-
-    .input-container.is-submitting {
-        opacity: 0.7;
-        cursor: wait;
     }
 
     .input-icon {
@@ -296,6 +328,7 @@
         .submit-button {
             width: 32px;
             height: 32px;
+            font-size: var(--font-size-sm);
         }
 
         .input-icon {

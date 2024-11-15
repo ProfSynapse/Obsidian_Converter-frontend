@@ -142,7 +142,7 @@ export function addFile(file) {
             type: fileType,
             size: file.size,
             lastModified: file.lastModified,
-            status: 'pending'
+            status: 'ready'
         };
 
         console.log('Adding file to store:', {

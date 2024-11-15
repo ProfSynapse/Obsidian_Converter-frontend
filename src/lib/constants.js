@@ -21,7 +21,7 @@ export const API_KEY_MIN_LENGTH = 32;
 
 // UI related constants
 export const CONVERSION_STATUSES = {
-  IDLE: 'idle',
+  READY: 'ready',
   CONVERTING: 'converting',
   COMPLETED: 'completed',
   ERROR: 'error'

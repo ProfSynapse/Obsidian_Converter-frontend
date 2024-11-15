@@ -1,232 +1,247 @@
 <!-- src/lib/components/ConversionStatus.svelte -->
-<script>
-  import { conversionStatus } from '$lib/stores/conversionStatus.js';
-  import { files } from '$lib/stores/files.js';
-  import { apiKey } from '$lib/stores/apiKey.js';
-  import ConversionClient, { ConversionError } from '$lib/utils/api/client.js';
-  import FileSaver from 'file-saver';
-  import { onDestroy } from 'svelte';
-  import { fade, slide } from 'svelte/transition';
-  import Container from './common/Container.svelte';
 
-  let status = 'idle';
+<script>
+  import { onDestroy } from 'svelte';
+  import { fade, fly } from 'svelte/transition';
+  import { conversionStatus } from '$lib/stores/conversionStatus.js';
+  import { startConversion } from '$lib/utils/conversionManager.js';
+  import Container from './common/Container.svelte';
+  import { apiKey } from '$lib/stores';
+
+  // Declare props
+  export let apiKeyRequired;
+  export let canStartConversion;
+
+  // Component state
+  let status = 'ready';
   let progress = 0;
   let error = null;
+  let currentFile = null;
+  let currentIcon = '🔄'; // Default icon
 
   // Subscribe to conversionStatus store
   const unsubscribe = conversionStatus.subscribe(value => {
     status = value.status;
     progress = value.progress;
     error = value.error;
-  });
+    currentFile = value.currentFile;
 
-  // Reactive variables
-  $: hasMediaFiles = $files.some(file =>
-    ['mp3', 'wav', 'ogg', 'mp4', 'mov', 'avi', 'webm'].includes(file.type.toLowerCase())
-  );
-  $: apiKeyRequired = hasMediaFiles && !$apiKey;
-  $: canStartConversion = $files.length > 0 && status !== 'converting' && !apiKeyRequired;
+    // Update currentIcon based on status
+    switch (status) {
+      case 'converting':
+        currentIcon = '🕐';
+        break;
+      case 'completed':
+        currentIcon = '✨';
+        break;
+      case 'error':
+        currentIcon = '⚠️';
+        break;
+      case 'stopped':
+        currentIcon = '🛑';
+        break;
+      default:
+        currentIcon = '🔄';
+    }
+  });
 
   onDestroy(() => {
     unsubscribe();
   });
 
   /**
-   * Extracts YouTube video ID from URL
-   */
-  function extractYoutubeId(url) {
-    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^\s&]+)/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  }
-
-  /**
-   * Prepares files for batch conversion
-   */
-  async function prepareBatchItems() {
-    return await Promise.all($files.map(async file => {
-      try {
-        if (file.file) {
-          // Handle uploaded files
-          const base64Content = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result.split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(file.file);
-          });
-
-          return {
-            type: 'file',
-            name: sanitizeFilename(file.name) || `file-${uuidv4()}`,
-            content: base64Content,
-            fileType: file.type.toLowerCase()
-          };
-        } else if (file.type.toLowerCase() === 'youtube') {
-          // Handle YouTube URLs
-          const videoId = extractYoutubeId(file.url);
-          if (!videoId) {
-            throw new Error('Invalid YouTube URL');
-          }
-
-          return {
-            type: 'youtube',
-            name: videoId,
-            content: file.url,
-            fileType: 'youtube'
-          };
-        } else {
-          // Handle other URLs
-          return {
-            type: 'url',
-            name: new URL(file.url).hostname,
-            content: file.url,
-            fileType: 'url'
-          };
-        }
-      } catch (error) {
-        console.error(`Error preparing item ${file.name}:`, error);
-        throw error;
-      }
-    }));
-  }
-
-  /**
-   * Handles starting the conversion process
-   */
-   async function handleStartConversion() {
-    if (!canStartConversion) return;
-
-    try {
-        conversionStatus.setStatus('converting');
-        conversionStatus.setProgress(0);
-
-        // Process each file
-        for (const file of $files) {
-            try {
-                conversionStatus.setCurrentFile(file.id);
-                files.updateFile(file.id, { status: 'converting' });
-
-                // Use the new convertItem method
-                const blob = await ConversionClient.convertItem(file, $apiKey);
-
-                // Handle successful conversion
-                files.updateFile(file.id, { 
-                    status: 'completed',
-                    blob: blob
-                });
-
-            } catch (error) {
-                console.error(`Error converting ${file.name}:`, error);
-                files.updateFile(file.id, { 
-                    status: 'error',
-                    error: error.message
-                });
-            }
-        }
-
-        conversionStatus.setStatus('completed');
-        conversionStatus.setProgress(100);
-
-    } catch (error) {
-        console.error('Conversion error:', error);
-        conversionStatus.setError(error.message);
-        conversionStatus.setStatus('error');
-    }
-}
-
-  /**
    * Shows feedback message
    */
   function showFeedback(message, type = 'info') {
     // Implement a method to show feedback to the user
-    // For simplicity, you might use a toast library or set a local variable
+    // For simplicity, using console.log. Replace with a toast or alert as needed.
     console.log(`${type.toUpperCase()}: ${message}`);
-    // Example: dispatch a custom event or use a store to show a toast
   }
 </script>
 
+<!-- Component Markup -->
 <Container class="conversion-container">
-  <div class="conversion-controls">
-    <!-- Status Display -->
-    {#if status === 'converting'}
-      <div class="status-info" in:fade>
-        <span class="icon">⚡</span>
-        <span>Converting... {progress}%</span>
-      </div>
-      <div class="progress-bar">
-        <div class="progress-fill" style="width: {progress}%"></div>
-      </div>
-    {:else if status === 'completed'}
-      <div class="status-info completed" in:fade>
-        <span class="icon">✅</span>
-        <span>Conversion Completed Successfully!</span>
-      </div>
-    {:else if status === 'error'}
-      <div class="status-info error" role="alert" in:fade>
-        <span class="icon">⚠️</span>
-        <span>Error: {error}</span>
-      </div>
-    {:else if status === 'stopped'}
-      <div class="status-info stopped" in:fade>
-        <span class="icon">🛑</span>
-        <span>Conversion Stopped.</span>
-      </div>
-    {/if}
-
-    <!-- API Key Warning (only for media files) -->
-    {#if apiKeyRequired}
-      <div class="api-key-warning" role="alert" in:slide>
-        <span class="icon">⚠️</span>
-        <span>API key required for audio/video file conversion</span>
-      </div>
-    {/if}
-
-    <!-- Conversion Button -->
+  <div 
+    class="conversion-controls"
+    class:is-converting={status === 'converting'}
+  >
+    <!-- Convert Button -->
     <div class="button-wrapper">
       <button
         class="convert-button"
         class:loading={status === 'converting'}
         disabled={!canStartConversion}
-        on:click={handleStartConversion}
+        on:click={startConversion}
+        aria-label="Start file conversion"
       >
         <span class="button-content">
-          {#if status === 'converting'}
-            <span class="icon rotating">🕛</span>
-            <span>Converting...</span>
-          {:else}
-            <span class="icon">🔄</span>
-            <span>Start Conversion</span>
-          {/if}
+          <span class="icon" class:rotating={status === 'converting'}>
+            {currentIcon}
+          </span>
+          <span>
+            {#if status === 'converting'}
+              Converting...
+            {:else}
+              Start Conversion
+            {/if}
+          </span>
         </span>
       </button>
     </div>
   </div>
+
+  <!-- Status Display -->
+  <div class="status-section" in:fade={{ duration: 200 }}>
+    {#if status !== 'ready'}
+      <div 
+        class="status-info {status}"
+        in:fly={{ y: 20, duration: 300 }}
+      >
+        <span class="icon" class:rotating={status === 'converting'}>
+          {currentIcon}
+        </span>
+        <span class="status-text">
+          {#if status === 'converting'}
+            Converting {#if currentFile}
+              file {currentFile}
+            {/if}
+          {:else if status === 'completed'}
+            Conversion Completed!
+          {:else if status === 'error'}
+            Error: {error}
+          {:else if status === 'stopped'}
+            Conversion Stopped
+          {/if}
+        </span>
+      </div>
+
+      <!-- Progress Bar -->
+      {#if status === 'converting' || status === 'completed'}
+        <div 
+          class="progress-container"
+          in:fly={{ y: 20, duration: 300, delay: 100 }}
+        >
+          <div class="progress-bar">
+            <div 
+              class="progress-fill"
+              style="width: {progress}%"
+            >
+              <div class="progress-glow"></div>
+            </div>
+          </div>
+          <span class="progress-text">{Math.round(progress)}%</span>
+        </div>
+      {/if}
+    {/if}
+  </div>
+
+  <!-- API Key Warning -->
+  {#if apiKeyRequired && !$apiKey}
+    <div 
+      class="api-key-warning" 
+      role="alert"
+      in:fly={{ y: 20, duration: 300 }}
+    >
+      <span class="icon">⚠️</span>
+      <span>API key required for media file conversion</span>
+    </div>
+  {/if}
 </Container>
 
 <style>
-  /* Ensure the container does not exceed parent widths */
-  .conversion-container {
-    /* No max-width here; Container handles it */
-  }
-
   .conversion-controls {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
-    align-items: center; /* Center child elements horizontally */
-    width: 100%; /* Ensure it takes full width of the Container */
+    align-items: center;
+    width: 100%;
+    padding: var(--spacing-md);
   }
 
-  /* Button Wrapper to control button width */
+  .status-section {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  /* Status Info Styles */
+  .status-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--rounded-lg);
+    background: var(--color-background);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .status-info.converting { color: var(--color-prime); }
+  .status-info.completed { color: var(--color-success); }
+  .status-info.error { color: var(--color-error); }
+  .status-info.stopped { color: var(--color-warning); }
+
+  .progress-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+  }
+
+  .progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--color-background-secondary);
+    border-radius: var(--rounded-full);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      var(--color-prime) 0%,
+      var(--color-second) 100%
+    );
+    border-radius: var(--rounded-full);
+    transition: width 0.3s ease;
+    position: relative;
+  }
+
+  .progress-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%
+    );
+    animation: shine 1.5s linear infinite;
+  }
+
+  .progress-text {
+    min-width: 4em;
+    text-align: right;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
   .button-wrapper {
     width: 100%;
-    max-width: 300px; /* Adjust as needed to match other containers */
-    display: flex;
-    justify-content: center;
+    max-width: 300px;
+    margin-top: var(--spacing-md);
   }
 
   .convert-button {
-    width: 100%; /* Button takes full width of its wrapper */
+    width: 100%;
     padding: var(--spacing-md) var(--spacing-lg);
     background: var(--gradient-primary);
     border: none;
@@ -235,116 +250,70 @@
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: all var(--transition-duration-normal) var(--transition-timing-bounce);
+    transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
   }
 
-  /* Loading state styles */
-  .convert-button.loading .icon {
-    animation: spin 1s linear infinite;
+  .convert-button:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
   }
 
-  /* Keyframes for spin animation */
-  @keyframes spin {
+  .convert-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .button-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+  }
+
+  .rotating {
+    animation: rotate 1s linear infinite;
+  }
+
+  @keyframes rotate {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
 
-  /* Status Info Styles */
-  .status-info {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-medium);
-  }
-
-  .status-info.completed { color: var(--color-success); }
-  .status-info.error { color: var(--color-error); }
-  .status-info.stopped { color: var(--color-warning); }
-
-  /* Progress Bar Styles */
-  .progress-bar {
-    width: 100%;
-    height: 8px;
-    background: var(--color-background-secondary);
-    border-radius: var(--rounded-full);
-    overflow: hidden;
-    margin-top: var(--spacing-xs);
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: var(--color-prime);
-    transition: width var(--transition-duration-normal) var(--transition-timing-ease);
-  }
-
-  /* API Key Warning Styles */
-  .api-key-warning {
-    padding: var(--spacing-sm) var(--spacing-md);
-    background: var(--color-warning-light);
-    color: var(--color-warning);
-    border-radius: var(--rounded-md);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    font-size: var(--font-size-sm);
-    width: 100%;
-    max-width: 300px; /* Align with button width */
+  @keyframes shine {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
   }
 
   /* Responsive Design */
   @media (max-width: 768px) {
     .button-wrapper {
-      max-width: 100%; /* Allow button to take full width on smaller screens */
-    }
-
-    .convert-button {
-      padding: var(--spacing-sm) var(--spacing-md);
-      font-size: var(--font-size-base);
-    }
-
-    .conversion-controls {
-      gap: var(--spacing-md);
-    }
-
-    .api-key-warning {
       max-width: 100%;
     }
-  }
 
-  @media (max-width: 640px) {
-    .convert-button {
-      padding: var(--spacing-sm) var(--spacing-md);
+    .status-info {
       font-size: var(--font-size-base);
     }
   }
 
   /* High Contrast Mode */
   @media (prefers-contrast: high) {
-    .convert-button {
-      border: 2px solid var(--color-text-on-dark);
-    }
-
-    .api-key-warning {
-      border: 2px solid var(--color-text-on-dark);
+    .convert-button,
+    .status-info {
+      border: 2px solid currentColor;
     }
   }
 
   /* Reduced Motion */
   @media (prefers-reduced-motion: reduce) {
-    .convert-button,
-    .progress-fill {
-      transition: none;
+    .rotating,
+    .progress-glow {
+      animation: none;
     }
 
     .convert-button:hover {
       transform: none;
-    }
-
-    .rotating {
-      animation: none;
     }
   }
 </style>

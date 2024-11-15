@@ -1,112 +1,27 @@
-<!-- src/lib/components/ObsidianNoteConverter -->
+<!-- src/lib/components/ObsidianNoteConverter.svelte -->
 
 <script>
-  import { onMount } from 'svelte';
-  import { fade, slide } from 'svelte/transition';
   import FileUploader from './FileUploader.svelte';
+  import FileList from './file/FileList.svelte';
   import ConversionStatus from './ConversionStatus.svelte';
+  import ApiKeyInput from './ApiKeyInput.svelte';
   import ResultDisplay from './ResultDisplay.svelte';
-  import { apiKey } from '$lib/stores/apiKey.js';
   import { files } from '$lib/stores/files.js';
+  import { apiKey } from '$lib/stores/apiKey.js';
   import { conversionStatus } from '$lib/stores/conversionStatus.js';
+  import { get, derived } from 'svelte/store';
+  import { slide } from 'svelte/transition';
 
-  let isConverting = false;
-  let currentFile = null;
-  let conversionError = null;
-
-  $: canConvert = $apiKey && $files.length > 0 && !isConverting;
+  // Reactive variables to determine API key necessity and conversion capability
+  $: hasMediaFiles = $files.some(file => ['mp3', 'wav', 'ogg', 'mp4', 'mov', 'avi', 'webm'].includes(file.type));
+  $: hasYouTubeFiles = $files.some(file => file.type === 'youtube');
+  $: apiKeyRequired = hasMediaFiles || hasYouTubeFiles;
+  $: canStartConversion = (!apiKeyRequired || !!$apiKey) && $files.length > 0 && $conversionStatus.status !== 'converting';
   $: isComplete = $conversionStatus.status === 'completed';
   $: hasError = $conversionStatus.status === 'error';
-
-  async function handleStartConversion() {
-    if (!canConvert) return;
-
-    try {
-      isConverting = true;
-      conversionError = null;
-      conversionStatus.setStatus('converting');
-      conversionStatus.setProgress(0);
-      
-      for (const file of $files) {
-        conversionStatus.setCurrentFile(file.name);
-        await convertFile(file);
-      }
-
-      conversionStatus.setStatus('completed');
-      conversionStatus.setProgress(100);
-    } catch (error) {
-      console.error('Conversion error:', error);
-      conversionError = error.message;
-      conversionStatus.setError(error.message);
-    } finally {
-      isConverting = false;
-    }
-  }
-
-  async function convertFile(file) {
-    const formData = new FormData();
-    formData.append('file', file.file);
-    formData.append('fileType', file.name.split('.').pop().toLowerCase());
-
-    const response = await fetch('http://localhost:3000/api/v1/convert/file', {
-      method: 'POST',
-      headers: { 'X-API-Key': $apiKey },
-      body: formData
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to convert ${file.name}`);
-    }
-
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error?.message || 'Conversion failed');
-    }
-
-    files.updateFile(file.id, {
-      status: 'completed',
-      convertedContent: result.content,
-      images: result.images || [],
-      fileId: result.fileId
-    });
-  }
-
-  async function handleDownload(event) {
-    try {
-      const fileId = event.detail.fileId;
-      const file = $files.find(f => f.id === fileId);
-      if (!file) throw new Error('File not found');
-
-      const zip = new JSZip();
-      zip.file(`${file.name}.md`, file.convertedContent);
-
-      if (file.images?.length > 0) {
-        const baseName = file.name.replace(/\.[^/.]+$/, '');
-        const imagesFolder = zip.folder(`attachments/${baseName}`);
-        
-        for (const image of file.images) {
-          const imageData = atob(image.data);
-          const arrayBuffer = new ArrayBuffer(imageData.length);
-          const uint8Array = new Uint8Array(arrayBuffer);
-          
-          for (let i = 0; i < imageData.length; i++) {
-            uint8Array[i] = imageData.charCodeAt(i);
-          }
-          
-          imagesFolder.file(image.name, uint8Array, { binary: true });
-        }
-      }
-
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${file.name}-converted.zip`);
-    } catch (error) {
-      console.error('Download error:', error);
-      alert('Failed to download file. Please try again.');
-    }
-  }
 </script>
 
-<main class="converter-app" in:fade={{ duration: 300 }}>
+<main class="converter-app">
   <header class="app-header">
     <h1 class="app-title">
       <span class="icon">📝</span>
@@ -118,14 +33,27 @@
   </header>
 
   <div class="converter-sections">
-    <!-- File Upload Section -->
+    <!-- File Uploader Section -->
     <section 
       class="section upload-section"
       class:is-active={!isComplete}
       transition:slide|local
     >
-      <FileUploader on:filesAdded />
+      <FileUploader />
     </section>
+
+    <!-- File List and API Key Input Section -->
+    {#if $files.length > 0}
+      <section 
+        class="section file-list-section"
+        transition:slide|local
+      >
+
+        {#if apiKeyRequired && !$apiKey}
+          <ApiKeyInput />
+        {/if}
+      </section>
+    {/if}
 
     <!-- Conversion Status Section -->
     {#if $files.length > 0}
@@ -133,31 +61,10 @@
         class="section status-section"
         transition:slide|local
       >
-        <ConversionStatus />
-        
-        {#if !isComplete && canConvert}
-          <div class="conversion-actions" transition:fade>
-            <button
-              class="convert-button"
-              class:loading={isConverting}
-              disabled={!canConvert}
-              on:click={handleStartConversion}
-            >
-              <span class="button-content">
-                <span class="icon">
-                  {#if isConverting}
-                    ⚡
-                  {:else}
-                    🔄
-                  {/if}
-                </span>
-                <span class="button-text">
-                  {isConverting ? 'Converting...' : 'Start Conversion'}
-                </span>
-              </span>
-            </button>
-          </div>
-        {/if}
+        <ConversionStatus 
+          apiKeyRequired={apiKeyRequired}
+          canStartConversion={canStartConversion}
+        />
       </section>
     {/if}
 
@@ -167,10 +74,7 @@
         class="section results-section"
         transition:slide|local
       >
-        <ResultDisplay 
-          files={$files} 
-          on:download={handleDownload} 
-        />
+        <ResultDisplay />
       </section>
     {/if}
   </div>
@@ -181,6 +85,9 @@
     max-width: var(--content-width-lg);
     margin: 0 auto;
     padding: var(--spacing-xl) var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xl);
   }
 
   .app-header {
@@ -224,75 +131,11 @@
     transform: scale(1.01);
   }
 
-  .conversion-actions {
-    display: flex;
-    justify-content: center;
-    margin-top: var(--spacing-xl);
-  }
-
-  .convert-button {
-    position: relative;
-    padding: var(--spacing-md) var(--spacing-xl);
-    background: var(--gradient-primary);
-    border: none;
-    border-radius: var(--rounded-lg);
-    color: var(--color-text-on-dark);
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-    transition: all var(--transition-duration-normal) var(--transition-timing-bounce);
-    overflow: hidden;
-  }
-
-  .convert-button::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--gradient-primary);
-    opacity: 0;
-    transition: opacity var(--transition-duration-normal);
-  }
-
-  .convert-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .convert-button:hover::before {
-    opacity: 1;
-  }
-
-  .convert-button:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  .convert-button:disabled {
-    background: var(--color-disabled);
-    cursor: not-allowed;
-  }
-
-  .button-content {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-sm);
-  }
-
-  .convert-button.loading .icon {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
   /* Responsive Design */
   @media (max-width: 768px) {
     .converter-app {
       padding: var(--spacing-lg) var(--spacing-md);
+      gap: var(--spacing-xl);
     }
 
     .app-title {
@@ -316,38 +159,20 @@
     .app-header {
       margin-bottom: var(--spacing-xl);
     }
-
-    .convert-button {
-      width: 100%;
-      padding: var(--spacing-md);
-    }
   }
 
   /* High Contrast Mode */
   @media (prefers-contrast: high) {
-    .convert-button {
-      background: var(--color-prime);
-      border: 2px solid var(--color-text-on-dark);
-    }
-
-    .convert-button::before {
-      display: none;
+    .converter-app {
+      background-color: var(--color-background-high-contrast);
     }
   }
 
   /* Reduced Motion */
   @media (prefers-reduced-motion: reduce) {
     .section,
-    .convert-button {
+    .converter-app {
       transition: none;
-      transform: none;
-    }
-
-    .section.is-active {
-      transform: none;
-    }
-
-    .convert-button:hover {
       transform: none;
     }
   }

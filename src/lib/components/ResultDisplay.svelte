@@ -1,22 +1,31 @@
 <!-- src/lib/components/ResultDisplay.svelte -->
+
 <script>
   import { files } from '$lib/stores/files.js';
   import { onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
   import Container from './common/Container.svelte';
   import JSZip from 'jszip';
+  import { derived } from 'svelte/store';
   import pkg from 'file-saver';
   const { saveAs } = pkg;
 
-  let convertedFiles = [];
+  // Derived store to get all converted files
+  const convertedFiles = derived(files, $files => $files.filter(file => file.status === 'completed'));
 
-  const unsubscribe = files.subscribe(value => {
-    convertedFiles = value.filter(file => file.status === 'completed');
-  });
+  // Derived store to check if all files are processed
+  const allConverted = derived(files, $files => 
+    $files.length > 0 && $files.every(file => file.status === 'completed' || file.status === 'error')
+  );
 
-  onDestroy(() => {
-    unsubscribe();
-  });
+  // Reactive flag to prevent multiple auto-download triggers
+  let triggerAutoDownload = false;
+
+  // Reactive statement to trigger auto-download when all conversions are complete
+  $: if ($allConverted && $convertedFiles.length > 0 && !triggerAutoDownload) {
+    triggerDownloadAll();
+    triggerAutoDownload = true;
+  }
 
   /**
    * Handles download event for a single file
@@ -27,21 +36,21 @@
       if (!file) throw new Error('File not found');
 
       const zip = new JSZip();
-      zip.file(`${file.name}.md`, file.convertedContent);
+      zip.file(`${file.name}.md`, file.convertedContent || ''); // Ensure convertedContent exists
 
       if (file.images?.length > 0) {
         const baseName = file.name.replace(/\.[^/.]+$/, '');
         const imagesFolder = zip.folder(`attachments/${baseName}`);
-        
+
         for (const image of file.images) {
           const imageData = atob(image.data);
           const arrayBuffer = new ArrayBuffer(imageData.length);
           const uint8Array = new Uint8Array(arrayBuffer);
-          
+
           for (let i = 0; i < imageData.length; i++) {
             uint8Array[i] = imageData.charCodeAt(i);
           }
-          
+
           imagesFolder.file(image.name, uint8Array, { binary: true });
         }
       }
@@ -60,23 +69,23 @@
   async function handleDownloadAll() {
     try {
       const zip = new JSZip();
-      
-      for (const file of convertedFiles) {
-        zip.file(`${file.name}.md`, file.convertedContent);
-        
+
+      for (const file of $convertedFiles) {
+        zip.file(`${file.name}.md`, file.convertedContent || '');
+
         if (file.images?.length > 0) {
           const baseName = file.name.replace(/\.[^/.]+$/, '');
           const imagesFolder = zip.folder(`attachments/${baseName}`);
-          
+
           for (const image of file.images) {
             const imageData = atob(image.data);
             const arrayBuffer = new ArrayBuffer(imageData.length);
             const uint8Array = new Uint8Array(arrayBuffer);
-            
+
             for (let i = 0; i < imageData.length; i++) {
               uint8Array[i] = imageData.charCodeAt(i);
             }
-            
+
             imagesFolder.file(image.name, uint8Array, { binary: true });
           }
         }
@@ -89,45 +98,58 @@
       alert('Failed to download all files. Please try again.');
     }
   }
-</script>
-  <div class="result-display">
-    <h2>Conversion Results</h2>
-    {#if convertedFiles.length > 0}
-      <ul class="result-list">
-        {#each convertedFiles as file}
-          <li class="result-item" in:fade>
-            <span class="icon">📄</span>
-            <span>{file.name}</span>
-            <button on:click={() => handleDownload(file.id)} class="download-button">
-              <span class="icon">⬇️</span>
-              Download
-            </button>
-          </li>
-        {/each}
-      </ul>
-      {#if convertedFiles.length > 1}
-        <div class="batch-download">
-          <button class="download-all-button" on:click={handleDownloadAll}>
-            <span class="icon">📦</span>
-            Download All Files (ZIP)
-          </button>
-        </div>
-      {/if}
-    {:else}
-      <p class="no-results">No conversions completed yet.</p>
-    {/if}
-  </div>
 
+  /**
+   * Automatically triggers the download of all converted files
+   */
+  function triggerDownloadAll() {
+    // Delay to ensure UI updates before triggering download
+    setTimeout(() => {
+      handleDownloadAll();
+    }, 500);
+  }
+</script>
+
+<div class="result-display" in:fade>
+  <h2>
+    <span class="icon">🎉</span>
+    Conversion Results
+  </h2>
+  {#if $convertedFiles.length > 0}
+    <ul class="result-list">
+      {#each $convertedFiles as file (file.id)}
+        <li class="result-item" in:fade out:fade>
+          <div class="file-info">
+            <span class="icon">📄</span>
+            <span class="file-name">{file.name}</span>
+            <span class="badge-success" title="Conversion successful">
+              ✨ Success
+            </span>
+          </div>
+          <button on:click={() => handleDownload(file.id)} class="download-button" aria-label={`Download ${file.name}`}>
+            <span class="icon">⬇️</span>
+            Download
+          </button>
+        </li>
+      {/each}
+    </ul>
+    {#if $convertedFiles.length > 1}
+      <div class="batch-download">
+        <button class="download-all-button" on:click={handleDownloadAll} aria-label="Download all converted files as ZIP">
+          <span class="icon">📦</span>
+          Download All Files (ZIP)
+        </button>
+      </div>
+    {/if}
+  {:else}
+    <p class="no-results">No conversions completed yet.</p>
+  {/if}
+</div>
 
 <style>
-  /* Ensure the container adheres to parent Container's width */
-  .result-display-container {
-    /* Container handles max-width */
-  }
-
   .result-display {
     width: 100%;
-    max-width: 600px; /* Match other components */
+    max-width: 800px; /* Increased max-width for better layout */
     margin: 0 auto;
     padding: var(--spacing-lg);
     background: var(--color-surface);
@@ -141,6 +163,9 @@
     margin-bottom: var(--spacing-md);
     font-size: var(--font-size-lg);
     color: var(--color-text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
   }
 
   .result-list {
@@ -155,9 +180,15 @@
   .result-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--spacing-xs);
-    padding: var(--spacing-2xs) 0;
+    padding: var(--spacing-2xs) var(--spacing-sm);
     border-bottom: 1px solid var(--color-background-secondary);
+    transition: background 0.3s ease;
+  }
+
+  .result-item:hover {
+    background: var(--color-background-hover);
   }
 
   .result-item:last-child {
@@ -166,6 +197,34 @@
 
   .result-item .icon {
     font-size: var(--font-size-xl);
+  }
+
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex: 1;
+  }
+
+  .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+  }
+
+  .badge-success {
+    background-color: var(--color-success-light);
+    color: var(--color-success);
+    padding: 4px 8px;
+    border-radius: var(--rounded-full);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
+    font-size: var(--font-size-sm);
+    transition: background 0.3s ease;
   }
 
   .download-button, .download-all-button {
@@ -189,17 +248,18 @@
     box-shadow: var(--shadow-sm);
   }
 
-  .batch-download {
-    margin-top: var(--spacing-md);
-    display: flex;
-    justify-content: center;
-  }
-
   .download-all-button {
     width: 100%;
     max-width: 300px;
     justify-content: center;
     background: var(--color-second);
+    margin-top: var(--spacing-md);
+  }
+
+  .batch-download {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--spacing-md);
   }
 
   .no-results {
@@ -220,14 +280,16 @@
 
     .result-item {
       gap: var(--spacing-2xs);
+      padding: var(--spacing-2xs) var(--spacing-xs);
     }
 
     .result-item .icon {
       font-size: var(--font-size-lg);
     }
 
-    .download-button {
+    .download-button, .download-all-button {
       padding: var(--spacing-xs) var(--spacing-2xs);
+      font-size: var(--font-size-xs);
     }
 
     .download-all-button {
@@ -238,19 +300,18 @@
   /* High Contrast Mode */
   @media (prefers-contrast: high) {
     .download-button, .download-all-button {
-      border: 2px solid var(--color-text-on-dark);
+      border: 2px solid currentColor;
+    }
+
+    .badge-success {
+      border: 2px solid currentColor;
     }
   }
 
   /* Reduced Motion */
   @media (prefers-reduced-motion: reduce) {
-    .download-button, .download-all-button {
+    .download-button, .download-all-button, .result-item {
       transition: none;
-    }
-
-    .download-button:hover, .download-all-button:hover {
-      transform: none;
-      box-shadow: none;
     }
   }
 </style>

@@ -4,146 +4,287 @@ import { writable } from 'svelte/store';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
- * Creates and returns an enhanced files store
- * @returns {Object} The files store instance
+ * File status enumeration
  */
-function createFilesStore() {
-  const { subscribe, update, set } = writable([]);
+export const FileStatus = {
+    READY: 'ready',
+    UPLOADING: 'uploading',
+    CONVERTING: 'converting',
+    COMPLETED: 'completed',
+    ERROR: 'error'
+};
 
-  /**
-   * Helper to check for duplicates
-   */
-  function checkDuplicate(files, newFile) {
-    return files.some(f => 
-      (f.url && f.url === newFile.url) || 
-      (f.name && f.name === newFile.name)
-    );
-  }
-
-  return {
-    subscribe,
-    
+/**
+ * Utility functions for file operations
+ */
+const FileUtils = {
     /**
-     * Adds a file to the store
-     * @returns {Object} Result object with success status and message
+     * Creates a standardized result object
      */
-    addFile: (file) => {
-      let result = { success: false, message: '' };
-      
-      try {
-        const newFile = {
-          ...file,
-          id: uuidv4()
-        };
-        
-        update(files => {
-          // Check for duplicates before adding
-          if (checkDuplicate(files, newFile)) {
-            result = { 
-              success: false, 
-              message: `File ${newFile.name || newFile.url} already exists` 
-            };
-            console.log('📁 Duplicate detected:', newFile.name || newFile.url);
-            return files;
-          }
-          
-          result = { 
-            success: true, 
-            message: `Added ${newFile.name || newFile.url} successfully` 
-          };
-          console.log('📁 Adding file:', newFile);
-          return [...files, newFile];
-        });
-
-        return result;
-      } catch (error) {
-        console.error('📁 Error adding file:', error);
-        return { 
-          success: false, 
-          message: error.message 
-        };
-      }
+    createResult(success, message, data = null) {
+        return { success, message, file: data };
     },
 
     /**
-     * Removes a file from the store
-     * @returns {Object} Result object with success status and message
+     * Creates a standardized file object
      */
-    removeFile: (id) => {
-      let result = { success: false, message: '' };
-      
-      update(files => {
-        const initialLength = files.length;
-        const updatedFiles = files.filter(f => f.id !== id);
-        
-        if (updatedFiles.length === initialLength) {
-          result = { 
-            success: false, 
-            message: 'File not found' 
-          };
-          console.log('📁 File not found for removal:', id);
-        } else {
-          result = { 
-            success: true, 
-            message: 'File removed successfully' 
-          };
-          console.log('📁 Removed file:', id);
-        }
-        
-        return updatedFiles;
-      });
-
-      return result;
+    createFileObject(file) {
+        return {
+            id: uuidv4(),
+            name: file.name,
+            type: file.type || 'unknown',
+            size: file.size || 0,
+            url: file.url || null,
+            file: file.file || null,
+            status: FileStatus.READY,
+            progress: 0,
+            error: null,
+            selected: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            ...file
+        };
     },
 
     /**
-     * Updates a file in the store
-     * @returns {Object} Result object with success status and message
+     * Checks for duplicate files
      */
-    updateFile: (id, data) => {
-      let result = { success: false, message: '' };
-      
-      update(files => {
-        const fileExists = files.some(f => f.id === id);
-        if (!fileExists) {
-          result = { 
-            success: false, 
-            message: 'File not found' 
-          };
-          return files;
-        }
+    isDuplicate(files, newFile) {
+        return files.some(f => (
+            (f.url && newFile.url && f.url === newFile.url) ||
+            (f.name && newFile.name && f.name === newFile.name && f.type === newFile.type)
+        ));
+    },
 
-        result = { 
-          success: true, 
-          message: 'File updated successfully' 
+    /**
+     * Updates a file's timestamp
+     */
+    withTimestamp(file) {
+        return {
+            ...file,
+            updatedAt: new Date().toISOString()
         };
-        
-        return files.map(file => 
-          file.id === id ? { ...file, ...data } : file
-        );
-      });
-
-      return result;
-    },
-
-    clearFiles: () => {
-      console.log('📁 Clearing all files');
-      set([]);
-      return { 
-        success: true, 
-        message: 'All files cleared' 
-      };
-    },
-
-    hasFile: (url) => {
-      let exists = false;
-      update(files => {
-        exists = files.some(f => f.url === url);
-        return files;
-      });
-      return exists;
     }
-  };
+};
+
+/**
+ * Creates a store action with standard error handling
+ */
+function createAction(name, handler) {
+    return (...args) => {
+        try {
+            return handler(...args);
+        } catch (error) {
+            console.error(`📁 Error in ${name}:`, error);
+            return FileUtils.createResult(false, error.message);
+        }
+    };
+}
+
+    /**
+     * Creates and returns the files store
+     */
+    function createFilesStore() {
+        const { subscribe, update, set } = writable([]);
+
+        function hasFile(url) {
+            let found = false;
+            update(files => {
+                found = files.some(file => file.url === url);
+                return files;
+            });
+            return found;
+        }
+
+    /**
+     * Updates files and returns a result
+     */
+    function updateFiles(updater, successMsg) {
+        let result;
+        update(files => {
+            const updated = updater(files);
+            result = updated.result;
+            return updated.files;
+        });
+        return result;
+    }
+
+    return {
+        subscribe,
+
+        /**
+         * Adds a file to the store
+         */
+        addFile: createAction('addFile', (file) => {
+            const newFile = FileUtils.createFileObject(file);
+            
+            return updateFiles(files => {
+                if (FileUtils.isDuplicate(files, newFile)) {
+                    return {
+                        files,
+                        result: FileUtils.createResult(false, 
+                            `File "${newFile.name}" already exists`
+                        )
+                    };
+                }
+
+                console.log('📁 Adding file:', newFile);
+                return {
+                    files: [...files, newFile],
+                    result: FileUtils.createResult(true, 
+                        `Added "${newFile.name}" successfully`, 
+                        newFile
+                    )
+                };
+            });
+        }),
+
+        /**
+         * Updates a file in the store
+         */
+        updateFile: createAction('updateFile', (id, data) => {
+            return updateFiles(files => {
+                const index = files.findIndex(f => f.id === id);
+                if (index === -1) {
+                    return {
+                        files,
+                        result: FileUtils.createResult(false, 'File not found')
+                    };
+                }
+
+                const updatedFile = FileUtils.withTimestamp({
+                    ...files[index],
+                    ...data
+                });
+
+                const updatedFiles = [...files];
+                updatedFiles[index] = updatedFile;
+
+                console.log('📁 Updated file:', updatedFile);
+                return {
+                    files: updatedFiles,
+                    result: FileUtils.createResult(true, 
+                        'File updated successfully', 
+                        updatedFile
+                    )
+                };
+            });
+        }),
+
+        /**
+         * Removes a file from the store
+         */
+        removeFile: createAction('removeFile', (id) => {
+            return updateFiles(files => {
+                const fileToRemove = files.find(f => f.id === id);
+                if (!fileToRemove) {
+                    return {
+                        files,
+                        result: FileUtils.createResult(false, 
+                            `File with ID "${id}" not found`
+                        )
+                    };
+                }
+
+                console.log('📁 Removing file:', fileToRemove);
+                return {
+                    files: files.filter(f => f.id !== id),
+                    result: FileUtils.createResult(true, 
+                        `Removed "${fileToRemove.name}" successfully`, 
+                        fileToRemove
+                    )
+                };
+            });
+        }),
+
+        /**
+         * Selects or deselects a file
+         */
+        toggleSelect: createAction('toggleSelect', (id) => {
+            return updateFiles(files => {
+                const index = files.findIndex(f => f.id === id);
+                if (index === -1) {
+                    return {
+                        files,
+                        result: FileUtils.createResult(false, 'File not found')
+                    };
+                }
+
+                const updatedFiles = [...files];
+                updatedFiles[index] = FileUtils.withTimestamp({
+                    ...files[index],
+                    selected: !files[index].selected
+                });
+
+                return {
+                    files: updatedFiles,
+                    result: FileUtils.createResult(true, 
+                        'Selection toggled successfully', 
+                        updatedFiles[index]
+                    )
+                };
+            });
+        }),
+
+        /**
+         * Selects or deselects all files
+         */
+        selectAll: createAction('selectAll', (select = true) => {
+            let count = 0;
+            return updateFiles(files => {
+                const updatedFiles = files.map(file => {
+                    if (file.selected !== select) {
+                        count++;
+                        return FileUtils.withTimestamp({
+                            ...file,
+                            selected: select
+                        });
+                    }
+                    return file;
+                });
+
+                return {
+                    files: updatedFiles,
+                    result: {
+                        success: true,
+                        message: `${select ? 'Selected' : 'Deselected'} ${count} files`,
+                        count
+                    }
+                };
+            });
+        }),
+
+        /**
+         * Retrieves currently selected files
+         */
+        getSelectedFiles() {
+            let selected = [];
+            update(files => {
+                selected = files.filter(f => f.selected);
+                return files;
+            });
+            return selected;
+        },
+
+        /**
+         * Clears all files from the store
+         */
+        clearFiles: createAction('clearFiles', () => {
+            let count = 0;
+            return updateFiles(files => {
+                count = files.length;
+                console.log('📁 Clearing all files');
+                return {
+                    files: [],
+                    result: {
+                        success: true,
+                        message: `Cleared ${count} files`,
+                        count
+                    }
+                };
+            });
+        })
+    };
 }
 
 export const files = createFilesStore();
