@@ -59,8 +59,8 @@ export class RequestHandler {
   static _logResponse(response, data) {
     console.log('📥 Response:', {
       status: response.status,
-      statusText: response.statusText, 
-      headers: Object.fromEntries(response.headers),
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
       data
     });
   }
@@ -71,8 +71,8 @@ export class RequestHandler {
    */
   static _getResponseType(contentType) {
     if (contentType.includes('application/json')) return ResponseTypes.JSON;
-    if (contentType.includes('application/zip') || 
-        contentType.includes('application/octet-stream')) return ResponseTypes.BLOB;
+    if (contentType.includes('application/zip') ||
+      contentType.includes('application/octet-stream')) return ResponseTypes.BLOB;
     return ResponseTypes.TEXT;
   }
 
@@ -101,7 +101,7 @@ export class RequestHandler {
       // Make request
       const response = await fetch(endpoint, requestOptions);
       clearTimeout(timeoutId);
-      
+
       return await this._handleResponse(response);
 
     } catch (error) {
@@ -122,7 +122,7 @@ export class RequestHandler {
       const errorText = await response.text();
       console.error('❌ Error Response:', {
         status: response.status,
-        headers: Object.fromEntries(response.headers),
+        headers: Object.fromEntries(response.headers.entries()),
         body: errorText
       });
 
@@ -191,12 +191,12 @@ export class RequestHandler {
   static _shouldRetry(error) {
     // Don't retry validation or 400 errors
     if ((error instanceof ConversionError && error.code === 'VALIDATION_ERROR') ||
-        error.status === 400 || (error.response?.status === 400)) {
+      error.status === 400 || (error.response?.status === 400)) {
       return false;
     }
 
     // Retry network and timeout errors
-    return error instanceof ConversionError ? 
+    return error instanceof ConversionError ?
       ErrorUtils.isRetryable(error) :
       ['NetworkError', 'AbortError', 'TimeoutError'].includes(error.name);
   }

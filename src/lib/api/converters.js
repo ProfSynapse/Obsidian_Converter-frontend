@@ -27,11 +27,11 @@ export class Converters {
       'Accept': 'application/json, application/zip, application/octet-stream',
       'Content-Type': 'application/json'
     };
-    
+
     if (apiKey) {
       headers['x-api-key'] = apiKey;
     }
-    
+
     return headers;
   }
 
@@ -50,7 +50,7 @@ export class Converters {
     }
 
     try {
-      const normalizedUrl = !/^https?:\/\//i.test(trimmed) ? 
+      const normalizedUrl = !/^https?:\/\//i.test(trimmed) ?
         `https://${trimmed}` : trimmed;
       new URL(normalizedUrl); // Validate URL format
       return normalizedUrl;
@@ -154,14 +154,26 @@ export class Converters {
    * @public
    */
   static async convertParentUrl(input, apiKey) {
-    const options = this._prepareRequest(input, 'parent', apiKey);
+    const options = this._prepareRequest(input, 'parenturl', apiKey);
     options.body = JSON.stringify({
       ...JSON.parse(options.body),
       parenturl: JSON.parse(options.body).url, // Rename url to parenturl
       url: undefined // Remove original url field
     });
-    
+
+    console.log('🔄 Converting Parent URL with modified options.');
+
     return this._makeConversionRequest(ENDPOINTS.CONVERT_PARENT_URL, options, 'Parent URL');
+  }
+
+  /**
+   * Converts a file
+   * @public
+   */
+  static async convertFile(input, apiKey) {
+    // Implement file conversion logic if needed
+    console.warn('File conversion not implemented.');
+    throw new ConversionError.validation('File conversion not implemented');
   }
 }
 
