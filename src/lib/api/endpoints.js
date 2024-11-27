@@ -9,7 +9,7 @@ import { CONFIG } from './config.js';
  */
 function generateEndpoints(baseUrl) {
     const endpoints = {
-        CONVERT: `${baseUrl}/convert/file`,
+        CONVERT_FILE: `${baseUrl}/convert/file`,  // Changed CONVERT to CONVERT_FILE
         CONVERT_URL: `${baseUrl}/convert/url`,
         CONVERT_PARENT_URL: `${baseUrl}/convert/parent-url`,
         CONVERT_YOUTUBE: `${baseUrl}/convert/youtube`,
@@ -19,6 +19,17 @@ function generateEndpoints(baseUrl) {
 
     // Freeze endpoints to prevent modifications
     return Object.freeze(endpoints);
+}
+
+const API_BASE_URL = CONFIG.API.BASE_URL;
+
+export const ENDPOINTS = generateEndpoints(API_BASE_URL);
+
+// Validate endpoints in development
+if (import.meta.env.DEV) {
+    validateEndpoints(ENDPOINTS);
+    console.log('API Base URL:', CONFIG.API.BASE_URL);
+    console.log('API Endpoints:', ENDPOINTS);
 }
 
 /**
@@ -37,16 +48,6 @@ function validateEndpoints(endpoints) {
     });
 }
 
-// Generate endpoints using base URL from config
-export const ENDPOINTS = generateEndpoints(CONFIG.API.BASE_URL);
-
-// Validate endpoints in development
-if (import.meta.env.DEV) {
-    validateEndpoints(ENDPOINTS);
-    console.log('API Base URL:', CONFIG.API.BASE_URL);
-    console.log('API Endpoints:', ENDPOINTS);
-}
-
 /**
  * Gets the URL for a specific endpoint type and ID
  * @param {string} type - The type of endpoint (e.g., 'url', 'file')
@@ -54,7 +55,15 @@ if (import.meta.env.DEV) {
  * @returns {string} The complete endpoint URL
  */
 export function getEndpointUrl(type, id = null) {
-    const endpoint = ENDPOINTS[`CONVERT_${type.toUpperCase()}`] || ENDPOINTS.CONVERT;
+    const endpointMap = {
+        url: ENDPOINTS.CONVERT_URL,
+        file: ENDPOINTS.CONVERT_FILE,
+        parent: ENDPOINTS.CONVERT_PARENT_URL,
+        youtube: ENDPOINTS.CONVERT_YOUTUBE,
+        batch: ENDPOINTS.CONVERT_BATCH
+    };
+    
+    const endpoint = endpointMap[type.toLowerCase()] || ENDPOINTS.CONVERT_FILE;
     return id ? `${endpoint}/${id}` : endpoint;
 }
 

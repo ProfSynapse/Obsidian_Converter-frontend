@@ -139,17 +139,18 @@ export function addFile(file) {
             id: generateUniqueId(),
             file: file,
             name: file.name,
-            type: fileType,
+            type: 'file',  // Always use 'file' type for converter compatibility
+            fileType: fileType, // Original file type 
+            format: fileType,
             size: file.size,
             lastModified: file.lastModified,
             status: 'ready'
         };
 
-        console.log('Adding file to store:', {
-            id: newFile.id,
-            name: newFile.name,
-            type: newFile.type,
-            size: newFile.size
+        // Add debug logging
+        console.log('Creating new file object:', {
+            ...newFile,
+            file: '[File object]' // Avoid logging full file object
         });
 
         files.addFile(newFile);
@@ -251,4 +252,24 @@ export function readFileAsDataURL(file) {
         reader.onerror = error => reject(error);
         reader.readAsDataURL(file);
     });
+}
+
+/**
+ * Validates a file object
+ * @param {Object} fileObj - The file object to validate
+ * @returns {Object} The validated file object
+ * @throws {Error} If the file object is invalid
+ */
+export function validateFileObject(fileObj) {
+    if (!fileObj || typeof fileObj !== 'object') {
+        throw new Error('Invalid file object');
+    }
+    
+    // Ensure type is always 'file'
+    if (fileObj.type !== 'file') {
+        console.warn(`Correcting invalid type '${fileObj.type}' to 'file'`);
+        fileObj.type = 'file';
+    }
+    
+    return fileObj;
 }

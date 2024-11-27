@@ -24,6 +24,8 @@ const DEFAULT_CONFIG = {
   }
 };
 
+const DEFAULT_TIMEOUT = 30000; // 30 seconds
+
 /**
  * Handles all API requests with consistent error handling and retries
  */
@@ -80,33 +82,51 @@ export class RequestHandler {
    * Makes an API request with retry logic
    * @public
    */
-  static async makeRequest(endpoint, options, retries = CONFIG.API.MAX_RETRIES) {
-    const { controller, timeoutId } = this._createTimeoutController(CONFIG.API.TIMEOUT);
+  static async makeRequest(endpoint, options) {
+    if (!endpoint) {
+      throw new Error('Endpoint is undefined.');
+    }
 
     try {
-      // Prepare request options
-      const requestOptions = {
-        ...DEFAULT_CONFIG,
-        ...options,
-        signal: controller.signal,
-        headers: new Headers({
-          ...DEFAULT_CONFIG.headers,
-          ...(options.headers || {})
-        })
-      };
+      const response = await fetch(endpoint, options);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+            message: `Request failed with status ${response.status}`
+        }));
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+      }
 
-      const body = options.body;
-      this._logRequest(endpoint, requestOptions, body);
+      const contentType = response.headers.get('Content-Type');
+      if (contentType?.includes('application/zip')) {
+        const blob = await response.blob();
+        if (blob.size === 0) {
+          throw new Error('Received empty blob from server');
+        }
 
-      // Make request
-      const response = await fetch(endpoint, requestOptions);
-      clearTimeout(timeoutId);
+        // Get filename from Content-Disposition header
+        const disposition = response.headers.get('Content-Disposition');
+        const filename = disposition ? 
+          disposition.split('filename=')[1].replace(/"/g, '') : 
+          'conversion.zip';
+        
+        // Create download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        window.URL.revokeObjectURL(url);
 
-      return await this._handleResponse(response);
-
+        return blob;
+      } else if (contentType?.includes('application/json')) {
+        return await response.json();
+      } else {
+        throw new Error(`Unsupported response type: ${contentType}`);
+      }
     } catch (error) {
-      clearTimeout(timeoutId);
-      return await this._handleError(error, endpoint, options, retries);
+      console.error('🔥 Request failed:', error);
+      throw error;
     }
   }
 
@@ -168,20 +188,9 @@ export class RequestHandler {
    * Handles request errors and implements retry logic
    * @private
    */
-  static async _handleError(error, endpoint, options, retries) {
+  static async _handleError(error) {
     console.error('🔥 Request failed:', error);
-
-    if (error.name === 'AbortError') {
-      throw new ConversionError('Request timeout', 'TIMEOUT_ERROR');
-    }
-
-    if (retries > 0 && this._shouldRetry(error)) {
-      console.log(`🔄 Retrying request (${retries} attempts left)...`);
-      await new Promise(resolve => setTimeout(resolve, CONFIG.API.RETRY_DELAY));
-      return this.makeRequest(endpoint, options, retries - 1);
-    }
-
-    throw ErrorUtils.wrap(error);
+    throw error;
   }
 
   /**
@@ -199,6 +208,19 @@ export class RequestHandler {
     return error instanceof ConversionError ?
       ErrorUtils.isRetryable(error) :
       ['NetworkError', 'AbortError', 'TimeoutError'].includes(error.name);
+  }
+
+  /**
+   * Creates an error object from response
+   * @private
+   */
+  static async _createErrorFromResponse(response) {
+    try {
+      const errorData = await response.json();
+      return new Error(errorData.message || `Request failed with status ${response.status}`);
+    } catch {
+      return new Error(`Request failed with status ${response.status}`);
+    }
   }
 }
 

@@ -33,9 +33,9 @@
    * @param {string} message - The message to display
    * @param {string} type - Type of message ('success' or 'error')
    */
-  function showFeedback(message, type = 'info') {
-    uploadStore.setError(message);
-    const timeout = setTimeout(() => uploadStore.clearError(), 5000);
+   function showFeedback(message, type = 'info') {
+    uploadStore.setMessage(message, type);
+    const timeout = setTimeout(() => uploadStore.clearMessage(), 5000);
     return () => clearTimeout(timeout);
   }
 

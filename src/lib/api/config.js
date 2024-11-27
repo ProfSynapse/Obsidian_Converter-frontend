@@ -9,7 +9,7 @@ export const CONFIG = {
     API: {
         MAX_RETRIES: 3,
         RETRY_DELAY: 1000,
-        TIMEOUT: 30000,
+        TIMEOUT: 300000,
         BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1',
         HEADERS: {
             'Accept': 'application/json, application/zip, application/octet-stream',

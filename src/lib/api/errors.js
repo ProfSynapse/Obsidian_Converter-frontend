@@ -13,28 +13,10 @@ export class ConversionError extends Error {
     }
 
     /**
-     * Creates an error instance from an API response
-     */
-    static fromResponse(response, defaultMessage = 'Conversion failed') {
-        return new ConversionError(
-            response.message || defaultMessage,
-            response.code || 'API_ERROR',
-            response.details || null
-        );
-    }
-
-    /**
      * Creates a validation error instance
      */
     static validation(message, details = null) {
         return new ConversionError(message, 'VALIDATION_ERROR', details);
-    }
-
-    /**
-     * Creates a network error instance
-     */
-    static network(message, details = null) {
-        return new ConversionError(message, 'NETWORK_ERROR', details);
     }
 }
 

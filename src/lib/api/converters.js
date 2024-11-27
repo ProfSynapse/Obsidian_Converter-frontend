@@ -23,16 +23,11 @@ export class Converters {
    * @private
    */
   static _createHeaders(apiKey) {
-    const headers = {
-      'Accept': 'application/json, application/zip, application/octet-stream',
-      'Content-Type': 'application/json'
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'Accept': 'application/json'
     };
-
-    if (apiKey) {
-      headers['x-api-key'] = apiKey;
-    }
-
-    return headers;
   }
 
   /**
@@ -93,7 +88,12 @@ export class Converters {
    * @private
    */
   static async _makeConversionRequest(endpoint, options, type) {
+    if (!endpoint) {
+      throw new ConversionError(`No endpoint defined for ${type} conversion`, 'VALIDATION_ERROR');
+    }
+    
     try {
+      console.log(`🔄 Making ${type} conversion request to ${endpoint}`);
       return await RequestHandler.makeRequest(endpoint, options);
     } catch (error) {
       console.error(`❌ ${type} conversion error:`, error);
@@ -154,15 +154,32 @@ export class Converters {
    * @public
    */
   static async convertParentUrl(input, apiKey) {
-    const options = this._prepareRequest(input, 'parenturl', apiKey);
-    options.body = JSON.stringify({
-      ...JSON.parse(options.body),
-      parenturl: JSON.parse(options.body).url, // Rename url to parenturl
-      url: undefined // Remove original url field
-    });
+    if (!input?.url) {
+      throw ConversionError.validation('Parent URL is required');
+    }
 
-    console.log('🔄 Converting Parent URL with modified options.');
+    const normalizedUrl = this._normalizeUrl(input.url);
+    
+    // Structure specifically for parent URL endpoint
+    const requestBody = {
+      parenturl: normalizedUrl, // Changed from url to parenturl
+      options: {
+        depth: input.options?.depth || 1,
+        maxPages: input.options?.maxPages || 10,
+        includeImages: input.options?.includeImages ?? true,
+        includeMeta: input.options?.includeMeta ?? true,
+        convertLinks: input.options?.convertLinks ?? true
+      },
+      name: input.name?.trim() || 'Untitled'
+    };
 
+    const options = {
+      method: 'POST',
+      headers: this._createHeaders(apiKey),
+      body: JSON.stringify(requestBody)
+    };
+
+    console.log('🔄 Converting Parent URL:', { requestBody });
     return this._makeConversionRequest(ENDPOINTS.CONVERT_PARENT_URL, options, 'Parent URL');
   }
 
@@ -171,9 +188,48 @@ export class Converters {
    * @public
    */
   static async convertFile(input, apiKey) {
-    // Implement file conversion logic if needed
-    console.warn('File conversion not implemented.');
-    throw new ConversionError.validation('File conversion not implemented');
+    if (!input.content) {
+        throw new ConversionError('File content is required for conversion', 'VALIDATION_ERROR');
+    }
+
+    // Create FormData for file upload
+    const formData = new FormData();
+    
+    // Convert base64 to blob
+    const byteCharacters = atob(input.content);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+
+    // Append file and metadata
+    formData.append('file', blob, input.name);
+    formData.append('options', JSON.stringify({
+        ...DEFAULT_OPTIONS,
+        ...input.options
+    }));
+
+    const options = {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            // Don't set Content-Type, let browser set it with boundary
+        },
+        body: formData
+    };
+
+    try {
+        const result = await this._makeConversionRequest(ENDPOINTS.CONVERT_FILE, options, 'File');
+        if (!(result instanceof Blob)) {
+            throw new ConversionError('Invalid response format received from server');
+        }
+        return result;
+    } catch (error) {
+        console.error('File conversion failed:', error);
+        throw error;
+    }
   }
 }
 

@@ -14,8 +14,7 @@
 
   // Reactive variables to determine API key necessity and conversion capability
   $: hasMediaFiles = $files.some(file => ['mp3', 'wav', 'ogg', 'mp4', 'mov', 'avi', 'webm'].includes(file.type));
-  $: hasYouTubeFiles = $files.some(file => file.type === 'youtube');
-  $: apiKeyRequired = hasMediaFiles || hasYouTubeFiles;
+  $: apiKeyRequired = hasMediaFiles;
   $: canStartConversion = (!apiKeyRequired || !!$apiKey) && $files.length > 0 && $conversionStatus.status !== 'converting';
   $: isComplete = $conversionStatus.status === 'completed';
   $: hasError = $conversionStatus.status === 'error';

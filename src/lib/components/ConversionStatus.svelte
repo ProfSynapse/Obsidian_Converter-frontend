@@ -2,7 +2,7 @@
 
 <script>
   import { onDestroy } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
+  import { fade, fly, slide } from 'svelte/transition';
   import { conversionStatus } from '$lib/stores/conversionStatus.js';
   import { startConversion } from '$lib/utils/conversionManager.js';
   import Container from './common/Container.svelte';

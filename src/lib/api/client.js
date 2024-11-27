@@ -28,22 +28,30 @@ _validateAndNormalizeItem(item) {
   
     const type = item.type.toLowerCase();
   
-    // Check if type is supported using CONFIG.ITEM_TYPES values
-    if (!Object.values(CONFIG.ITEM_TYPES).includes(type)) {
+    if (!this.supportedTypes.includes(type)) {
       throw ConversionError.validation(`Unsupported type: ${type}`);
     }
-  
+
+    // Special validation for parent URL
+    if (type === CONFIG.ITEM_TYPES.PARENT_URL && !item.url) {
+      throw ConversionError.validation('Parent URL is required');
+    }
+
     // Normalize the item's properties
     return {
       id: item.id || crypto.randomUUID(),
       type,
-      name: item.name?.trim().replace(/\/$/, '') || 'Untitled', // Remove trailing slash
+      name: item.name?.trim() || 'Untitled',
       url: item.url?.trim() || null,
       content: item.content || null,
-      file: item.file || null,
       options: {
         includeImages: true,
         includeMeta: true,
+        convertLinks: true,
+        ...(type === CONFIG.ITEM_TYPES.PARENT_URL && {
+          depth: item.options?.depth || 1,
+          maxPages: item.options?.maxPages || 10
+        }),
         ...item.options
       }
     };
@@ -72,7 +80,8 @@ _validateAndNormalizeItem(item) {
           result = await Converters.convertUrl(normalizedItem, apiKey);
           break;
         case CONFIG.ITEM_TYPES.YOUTUBE:
-          result = await Converters.convertYoutube(normalizedItem, apiKey);
+          // YouTube conversion no longer requires API key
+          result = await Converters.convertYoutube(normalizedItem);
           break;
         case CONFIG.ITEM_TYPES.PARENT_URL:
           result = await Converters.convertParentUrl(normalizedItem, apiKey);
@@ -212,6 +221,30 @@ _validateAndNormalizeItem(item) {
     this.cancelAllRequests();
     this.activeRequests.clear();
     conversionStatus.reset();
+  }
+
+  /**
+   * Makes a conversion request with enhanced error handling
+   * @private
+   */
+  static async _makeConversionRequest(endpoint, options, type) {
+    if (!endpoint) {
+        throw new ConversionError(`No endpoint defined for ${type} conversion`, 'VALIDATION_ERROR');
+    }
+    
+    try {
+        console.log(`🔄 Making ${type} conversion request to ${endpoint}`);
+        const response = await RequestHandler.makeRequest(endpoint, options);
+        
+        if (!response.ok) {
+            throw new Error(`Server responded with status ${response.status}`);
+        }
+
+        return await response.blob();
+    } catch (error) {
+        console.error(`❌ ${type} conversion error:`, error);
+        throw ErrorUtils.wrap(error);
+    }
   }
 }
 
